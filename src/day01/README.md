@@ -29,7 +29,9 @@
 ### 🔴 进阶题
 
 8. 写 `getNotificationIcon(n: Notification): 'mail' | 'phone' | 'bell'`,返回字面量联合。
-9. 写 `createNotification<K extends NotificationType>(type: K, payload: Omit<Extract<Notification, { type: K }>, 'id' | 'createdAt' | 'isRead' | 'type'>): Notification`。思考:`Extract` 在这里起什么作用?为什么不用 `as` 强转?
+9. 写 `createNotification`,要求:**传 `type: 'email'` 时 payload 必须有 `subject` / `body` / `to`,传错立刻编译报错**。
+   - 先尝试泛型签名 `createNotification<K extends NotificationType>(type: K, payload: Omit<Extract<Notification, { type: K }>, 'id' | 'createdAt' | 'isRead' | 'type'>)` —— 这条路会踩两个坑:**泛型上 `Extract` 不收窄** + **`Omit<联合>` 求交集**,踩完才知道为什么走不通
+   - 最终正解:**判别联合参数** `{ type: 'email'; payload: ... } | { type: 'sms'; ... } | ...` + `switch` 收窄,零 `as`
 
 ## 验收点
 

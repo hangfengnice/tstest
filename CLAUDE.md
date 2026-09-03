@@ -41,6 +41,7 @@
   - `solution.ts` — 我自己写的实现
   - `solution.test.ts` — 验收测试(已写好,我只补断言细节)
   - `README.md` — 题面 + 验收点
+  - `NOTES.md` — 当天复盘:主动设计了什么 / 哪里依赖 AI / 踩的坑(带错误码)
 - 跑测试: `pnpm test`
 - 跑类型检查: `pnpm typecheck`
 

@@ -5,7 +5,7 @@
  *   1. 字面量类型 + 可辨识联合(discriminated union)
  *   2. 交叉类型抽公共字段
  *   3. type vs interface 的取舍
- *   4. Extract / 泛型约束做"按 type 收窄 payload"
+ *   4. 理解泛型上 Extract 不收窄的限制,用判别联合参数替代(踩坑记录见 NOTES.md)
  *
  * 规则:
  *   - 不允许 any;允许 unknown + 类型守卫

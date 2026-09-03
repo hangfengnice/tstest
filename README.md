@@ -26,7 +26,9 @@ src/
   day30/   — 综合项目
 ```
 
-每题:`solution.ts`(我写) + `solution.test.ts`(验收) + `README.md`(题面)
+每题:`solution.ts`(我写) + `solution.test.ts`(验收) + `README.md`(题面) + `NOTES.md`(复盘)
+
+进度总览见 [PROGRESS.md](./PROGRESS.md)。
 
 ## 命令
 
