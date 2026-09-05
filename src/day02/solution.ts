@@ -33,7 +33,7 @@ export type OmitResult = Omit<
 
 // 实验 2:泛型上 Extract 不收窄
 // 在函数体里试着 return 一个完整的 EmailNotification,把看到的报错写在这:
-//
+// Type '{ type: "email"; id: string; createdAt: string; isRead: false; subject: string; body: string; to: string; }' is not assignable to type 'Extract<EmailNotification, { type: K; }> | Extract<SmsNotification, { type: K; }> | Extract<PushNotification, { ...; }>'.
 export function pickByType<K extends NotificationType>(
   k: K,
 ): Extract<Notification, { type: K }> {
