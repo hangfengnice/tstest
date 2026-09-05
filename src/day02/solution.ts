@@ -31,25 +31,39 @@ export type OmitResult = Omit<
   'id' | 'createdAt' | 'isRead' | 'type'
 >
 
-// 实验 2:泛型上 Extract 不收窄
-// 在函数体里试着 return 一个完整的 EmailNotification,把看到的报错写在这:
-// Type '{ type: "email"; id: string; createdAt: string; isRead: false; subject: string; body: string; to: string; }' is not assignable to type 'Extract<EmailNotification, { type: K; }> | Extract<SmsNotification, { type: K; }> | Extract<PushNotification, { ...; }>'.
+// 实验 2:泛型上 Extract 不收窄(2026-09-05 复验完成)
+//
+// 尝试 1:return 完整的 EmailNotification 对象(见下方注释掉的代码)→ ts(2322)。
+//   报错关键信息:返回类型被展开为
+//   Extract<EmailNotification, { type: K }> | Extract<SmsNotification, { type: K }> | Extract<PushNotification, { type: K }>
+//   —— 三个条件类型原样挂着,没有收窄成任何分支。
+// 尝试 2:悬停返回类型 Extract<Notification, { type: K }>,同样是三个 Extract 挂起;
+//   对照字面量版本 Extract<Notification, { type: 'email' }>,它直接求值成 EmailNotification。
+//
+// 原因:Extract<T, U> = T extends U ? T : never。U 里含未落定的泛型 K,extends
+//   无法判定 → 条件类型挂起(deferred)。函数体内 K 要对所有调用负责(调用方可能传
+//   'sms' / 'push'),所以 return 任何单个分支的对象都不安全;只有调用点 K 落定,
+//   返回类型才真正收窄(如 pickByType('email') 的返回值就是 EmailNotification)。
+//
+// 结论:一个参数的值决定另一块数据的形状时 → 用判别联合参数 + switch 收窄,
+//   不要用泛型 Extract(签名对调用者漂亮,函数体却写不出来 —— 这个签名在类型上
+//   不可实现,throw 是它唯一合法的函数体;删掉 throw 试试,会得到 ts(2366))。
 export function pickByType<K extends NotificationType>(
   k: K,
 ): Extract<Notification, { type: K }> {
   void k
-  return {
-    type: 'email',
-    id: 'x',
-    createdAt: 'x',
-    isRead: false,
-    subject: 's',
-    body: 'b',
-    to: 't',
-  }
-  // 尝试在这里 return { type: 'email', id: 'x', createdAt: 'x', isRead: false, subject: 's', body: 'b', to: 't' }
-  // ↑ 取消注释,读报错,把结论写在上面注释区
-  throw new Error('实验 2:先做观察,做完删掉这行')
+  // 尝试 1 的实验代码,观察完注释保留作证据:
+  // return {
+  //   type: 'email',
+  //   id: 'x',
+  //   createdAt: 'x',
+  //   isRead: false,
+  //   subject: 's',
+  //   body: 'b',
+  //   to: 't',
+  // }
+  // ↑ 取消注释即可复现 ts(2322)
+  throw new Error('实验 2 结论:此签名类型上不可实现,throw 是唯一合法函数体')
 }
 
 // =============================================================
@@ -57,28 +71,67 @@ export function pickByType<K extends NotificationType>(
 // =============================================================
 
 // TODO: Conversation —— 对话(id / title / updatedAt / messageCount)
-export type Conversation = never // ← 替换
+export type Conversation = {
+  id: string
+  title: string
+  updatedAt: string
+  messageCount: number
+} // ← 替换
 
 // TODO: Pagination —— 分页(page / pageSize / total,都是 number)
-export type Pagination = never // ← 替换
+export type Pagination = {
+  page: number
+  pageSize: number
+  total: number
+} // ← 替换
 
 // TODO: Paged<T> —— 分页包装 { items: T[]; pagination: Pagination }
 // JSDoc 必须回答:为什么 items 不直接写 Conversation[],而要引入泛型 T?
-export type Paged<T> = never // ← 替换
+//  因为简化了 Paged 的复用,可以包装任何类型的 items,而不仅仅是 Conversation[]。
+export type Paged<T> = {
+  items: T[]
+  pagination: Pagination
+} // ← 替换
 
 // =============================================================
 // Part 2 — 进阶:可辨识联合建模请求状态
 // =============================================================
 
 // TODO: ApiError —— { code: number; message: string }
-export type ApiError = never // ← 替换
+export type ApiError = {
+  code: number
+  message: string
+} // ← 替换
 
 // TODO: RequestState<T> —— 四态(idle / loading / success / error)
 // JSDoc 必须回答:判别符是什么?和 Result 的使用场景对比?
-export type RequestState<T> = never // ← 替换
+// 判别符是 status,它是一个字面量联合类型,可以在 switch 里穷尽检查。
+export type RequestState<T> =
+  | {
+      status: 'idle'
+    }
+  | {
+      status: 'loading'
+    }
+  | {
+      status: 'success'
+      data: T
+    }
+  | {
+      status: 'error'
+      error: ApiError
+    } // ← 替换
 
 // TODO: Result<T, E> —— 两态({ ok: true, data: T } | { ok: false, error: E })
-export type Result<T, E> = never // ← 替换
+export type Result<T, E> =
+  | {
+      ok: true
+      data: T
+    }
+  | {
+      ok: false
+      error: E
+    } // ← 替换
 
 /**
  * 渲染请求状态为展示文案(列表页用)
@@ -90,7 +143,19 @@ export type Result<T, E> = never // ← 替换
  */
 export function renderState(state: RequestState<Paged<Conversation>>): string {
   // TODO: switch + never 穷尽检查(昨天学的)
-  throw new Error('TODO')
+  switch (state.status) {
+    case 'idle':
+      return '还没有对话'
+    case 'loading':
+      return '加载中…'
+    case 'success':
+      return `共 ${state.data.items.length} 个对话`
+    case 'error':
+      return `出错了(${state.error.code}):${state.error.message}`
+    default:
+      const _exhaustiveCheck: never = state
+      return _exhaustiveCheck
+  }
 }
 
 // =============================================================
@@ -105,11 +170,19 @@ export function renderState(state: RequestState<Paged<Conversation>>): string {
  *   mapResult(r, (n) => `共 ${n} 条`)
  *   // => { ok: true, data: '共 42 条' } —— 类型是 Result<string, ApiError>
  */
-export function mapResult(result: never, fn: never): never {
+export function mapResult<T, E, U>(
+  result: Result<T, E>,
+  fn: (data: T) => U,
+): Result<U, E> {
   // TODO: 签名自己设计 —— 上面这个占位签名是错的,从测试反推正确签名
-  void result
-  void fn
-  throw new Error('TODO')
+  if (result.ok) {
+    return {
+      ok: true,
+      data: fn(result.data),
+    }
+  } else {
+    return result
+  }
 }
 
 /**
@@ -119,9 +192,12 @@ export function mapResult(result: never, fn: never): never {
  *   unwrapOr({ ok: false, error: { code: 500, message: 'x' } }, 0)
  *   // => 0
  */
-export function unwrapOr(result: never, fallback: never): never {
+export function unwrapOr<T, E>(result: Result<T, E>, fallback: T): T {
   // TODO: 签名自己设计
-  void result
-  void fallback
+  if (result.ok) {
+    return result.data
+  } else {
+    return fallback
+  }
   throw new Error('TODO')
 }

@@ -122,10 +122,17 @@ describe('Day 2 — Part 2 请求状态建模', () => {
   it('renderState 四态渲染', () => {
     expect(renderState({ status: 'idle' })).toBe('还没有对话')
     expect(renderState({ status: 'loading' })).toBe('加载中…')
-    expect(renderState({ status: 'success', data: pagedTwo })).toBe('共 2 个对话')
-    expect(renderState({ status: 'success', data: pagedEmpty })).toBe('共 0 个对话')
+    expect(renderState({ status: 'success', data: pagedTwo })).toBe(
+      '共 2 个对话',
+    )
+    expect(renderState({ status: 'success', data: pagedEmpty })).toBe(
+      '共 0 个对话',
+    )
     expect(
-      renderState({ status: 'error', error: { code: 500, message: '服务器开小差了' } }),
+      renderState({
+        status: 'error',
+        error: { code: 500, message: '服务器开小差了' },
+      }),
     ).toBe('出错了(500):服务器开小差了')
   })
 })
@@ -136,7 +143,11 @@ describe('Day 2 — Part 2 请求状态建模', () => {
 
 describe('Day 2 — Part 3 mapResult', () => {
   it('成功分支:data 被 fn 转换,E 透传', () => {
-    const mapped = mapResult(okNum, (n) => `共 ${n} 条`)
+    const mapped = mapResult<number, ApiError, string>(
+      okNum,
+      (n) => `共 ${n} 条`,
+    )
+    // const mapped = mapResult(okNum, (n) => `共 ${n} 条`)
     expect(mapped).toEqual({ ok: true, data: '共 42 条' })
     expectTypeOf(mapped).toEqualTypeOf<Result<string, ApiError>>()
   })
