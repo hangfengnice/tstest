@@ -154,11 +154,14 @@ export type ApiError = {
  * Result 只有成败,面向函数返回值,把"抛异常"变成类型里的一个分支。
  *
  * @typeParam T - success 态携带的数据类型
+ * @typeParam E - error 态的错误类型,默认 ApiError(后端主约定)。
+ *   类型参数默认值是 Day 6 的正式主题,这里提前用一次:
+ *   它正是"推断零候选退化 unknown"(见 mapResult 注释)的又一道防线
  * @example
  *   const loading: RequestState<Paged<Conversation>> = { status: 'loading' }
  *   const ok: RequestState<number> = { status: 'success', data: 42 }
  */
-export type RequestState<T> =
+export type RequestState<T, E = ApiError> =
   | {
       status: 'idle'
     }
@@ -171,7 +174,7 @@ export type RequestState<T> =
     }
   | {
       status: 'error'
-      error: ApiError
+      error: E
     }
 
 /**
@@ -199,12 +202,15 @@ export type Result<T, E> =
 /**
  * 渲染请求状态为展示文案(列表页用)
  *
+ * 签名刻意放宽:文案只用 items.length,不关心元素是什么,
+ * 所以收 Paged<unknown> 而非 Paged<Conversation> —— 任何列表页都能复用。
+ *
  * @example
  *   renderState({ status: 'loading' })  // => '加载中…'
  *   renderState({ status: 'success', data: { items: [], pagination: { page: 1, pageSize: 20, total: 0 } } })
  *   // => '共 0 个对话'
  */
-export function renderState(state: RequestState<Paged<Conversation>>): string {
+export function renderState(state: RequestState<Paged<unknown>>): string {
   switch (state.status) {
     case 'idle':
       return '还没有对话'
@@ -243,14 +249,10 @@ export function mapResult<T, E, U>(
   result: Result<T, E>,
   fn: (data: T) => U,
 ): Result<U, E> {
-  if (result.ok) {
-    return {
-      ok: true,
-      data: fn(result.data),
-    }
-  } else {
-    return result
+  if (!result.ok) {
+    return result // 失败:守卫早返回,原样透传,不碰 fn
   }
+  return { ok: true, data: fn(result.data) } // 成功:主逻辑零缩进
 }
 
 /**

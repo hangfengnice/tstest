@@ -76,8 +76,15 @@ export type Notification =
   | SmsNotification
   | PushNotification
 
-// TODO: 定义 IconName 字面量联合('mail' | 'phone' | 'bell')
-export type IconName = 'mail' | 'phone' | 'bell' // ← 替换
+/**
+ * 通知图标名 —— 与 NotificationType 的映射见 getNotificationIcon。
+ * 独立定义而非复用 NotificationType:图标域和业务类型域各自演化,
+ * 硬绑一起会让"加一种通知但暂不配图标"变得不可能。
+ *
+ * @example
+ *   const icon: IconName = 'mail'
+ */
+export type IconName = 'mail' | 'phone' | 'bell'
 
 // =============================================================
 // 函数实现
@@ -109,23 +116,21 @@ export function formatNotification(n: Notification): string {
 }
 
 /**
- * 根据通知类型返回图标名
+ * 根据通知类型返回图标名 —— 映射关系固定,用查表替代 switch。
+ * 穷尽性保障换了位置但没丢:typeToIcon 必须覆盖 NotificationType 的
+ * 每个成员,否则 n.type 索引处直接编译报错(比 default: never 报得更早)。
  *
  * @example
  *   getNotificationIcon(emailNotif)  // => 'mail'
  */
+const typeToIcon = {
+  email: 'mail',
+  sms: 'phone',
+  push: 'bell',
+} as const
+
 export function getNotificationIcon(n: Notification): IconName {
-  switch (n.type) {
-    case 'email':
-      return 'mail'
-    case 'sms':
-      return 'phone'
-    case 'push':
-      return 'bell'
-    default:
-      const _exhaustiveCheck: never = n
-      return _exhaustiveCheck
-  }
+  return typeToIcon[n.type]
 }
 
 /**
@@ -139,48 +144,49 @@ export function getNotificationIcon(n: Notification): IconName {
  *   })
  *   // 返回 EmailNotification,id / createdAt / isRead 自动补全
  */
-export type CreateNotificationInput =
-  | {
-      type: 'email'
-      payload: Omit<EmailNotification, 'id' | 'createdAt' | 'isRead' | 'type'>
-    }
-  | {
-      type: 'sms'
-      payload: Omit<SmsNotification, 'id' | 'createdAt' | 'isRead' | 'type'>
-    }
-  | {
-      type: 'push'
-      payload: Omit<PushNotification, 'id' | 'createdAt' | 'isRead' | 'type'>
-    }
+/**
+ * 通知的"用户可填"载荷 —— 去掉系统生成的元字段(id/createdAt/isRead)和判别符。
+ * 泛型化(Day 2 知识回炉):Omit 的字段清单从三份收成一份,
+ * 以后调整"哪些字段算系统字段"只改这一处。
+ *
+ * @typeParam N - 具体某种通知(extends Notification 约束,不能乱传)
+ */
+type CreatePayload<N extends Notification> = Omit<
+  N,
+  'id' | 'createdAt' | 'isRead' | 'type'
+>
 
+export type CreateNotificationInput =
+  | { type: 'email'; payload: CreatePayload<EmailNotification> }
+  | { type: 'sms'; payload: CreatePayload<SmsNotification> }
+  | { type: 'push'; payload: CreatePayload<PushNotification> }
+
+/**
+ * 工厂函数 —— 按 type 收窄 payload,补全系统字段后返回对应通知。
+ * 三个分支的公共骨架(id/createdAt/isRead)提炼为 base,分支只声明差异。
+ *
+ * @example
+ *   createNotification({
+ *     type: 'email',
+ *     payload: { subject: 'hi', body: '...', to: 'a@b.com' },
+ *   })
+ */
 export function createNotification(
   input: CreateNotificationInput,
 ): Notification {
+  // 系统生成的公共元数据,三个分支共用
+  const base = {
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    isRead: false,
+  }
   switch (input.type) {
     case 'email':
-      return {
-        type: 'email',
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-        isRead: false,
-        ...input.payload,
-      }
+      return { type: 'email', ...base, ...input.payload }
     case 'sms':
-      return {
-        type: 'sms',
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-        isRead: false,
-        ...input.payload,
-      }
+      return { type: 'sms', ...base, ...input.payload }
     case 'push':
-      return {
-        type: 'push',
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-        isRead: false,
-        ...input.payload,
-      }
+      return { type: 'push', ...base, ...input.payload }
     default:
       const _exhaustiveCheck: never = input
       return _exhaustiveCheck

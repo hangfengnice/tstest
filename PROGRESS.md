@@ -9,7 +9,7 @@
 | Day | 日期 | 主题 | 验收 | 一句话收获 |
 |---|---|---|---|---|
 | 1 | 09-02~03 | 联合 / 交叉 / 字面量 / 可辨识联合 / type vs interface | ✅ 36/36 | 判别联合参数 > 泛型 Extract;`as` 是逃生通道 |
-| 2 | 09-03 | API 响应类型 + `Result<T, E>` + 泛型登场 | RequestState 多态  mapResult 参数解析| |
+| 2 | 09-03~05 | API 响应类型 + `Result<T, E>` + 泛型登场 | ✅ 16/16 | RequestState 四态联合建模 + mapResult 泛型推断 |
 | 3 | — | 类型守卫基础(typeof / in / instanceof)· 上 | ⏳ | |
 | 4 | — | 自定义类型守卫(is 谓词)+ unknown 解析 · 下 | ⏳ | |
 | 5 | — | 泛型函数 + extends 约束(K extends keyof T)· 上 | ⏳ | |
