@@ -134,6 +134,13 @@ describe('Day 2 — Part 2 请求状态建模', () => {
         error: { code: 500, message: '服务器开小差了' },
       }),
     ).toBe('出错了(500):服务器开小差了')
+    // 404 对照:防止错误码/文案被硬编码(2026-09-05 踩过的坑)
+    expect(
+      renderState({
+        status: 'error',
+        error: { code: 404, message: 'Not Found' },
+      }),
+    ).toBe('出错了(404):Not Found')
   })
 })
 
