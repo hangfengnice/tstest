@@ -17,7 +17,25 @@
 // =============================================================
 
 // TODO: StreamEvent —— 四种分支的可辨识联合,判别符 kind(见 README 字段表)
-export type StreamEvent = never // ← 替换
+export type StreamEvent =
+  | {
+      kind: 'text'
+      content: string
+    }
+  | {
+      kind: 'tool_call'
+      tool: string
+      argsJson: string
+    }
+  | {
+      kind: 'tool_result'
+      tool: string
+      ok: boolean
+    }
+  | {
+      kind: 'done'
+      reason: 'stop' | 'length' | 'error'
+    } // ← 替换
 
 // =============================================================
 // Part 1 — typeof 收窄 unknown
@@ -35,8 +53,23 @@ export type StreamEvent = never // ← 替换
  */
 export function describePrimitive(value: unknown): string {
   // TODO: typeof 分流,注意 null 陷阱和 NaN 分流
-  void value
-  throw new Error('TODO')
+  if (value === null) {
+    return '空'
+  } else if (value === undefined) {
+    return '未定义'
+  } else if (typeof value === 'string') {
+    return `文本(${value})`
+  } else if (Number.isNaN(value)) {
+    return '非数'
+  } else if (typeof value === 'number') {
+    return `数值(${value})`
+  } else if (typeof value === 'boolean') {
+    return `开关(${value})`
+  } else if (typeof value === 'object') {
+    return '对象'
+  } else {
+    return '未知'
+  }
 }
 
 // =============================================================
@@ -44,7 +77,9 @@ export function describePrimitive(value: unknown): string {
 // =============================================================
 
 // TODO: LegacyFrame —— 无判别符的旧协议联合(见 README)
-export type LegacyFrame = never // ← 替换
+export type LegacyFrame =
+  | { data: string; ts: number }
+  | { payload: string; ts: number } // ← 替换
 
 /**
  * 渲染流事件(消息列表用)
@@ -55,8 +90,19 @@ export type LegacyFrame = never // ← 替换
  */
 export function renderEvent(event: StreamEvent): string {
   // TODO: switch (event.kind) + never 穷尽检查
-  void event
-  throw new Error('TODO')
+  switch (event.kind) {
+    case 'text':
+      return `文本:${event.content}`
+    case 'tool_call':
+      return `调用 ${event.tool}(${event.argsJson})`
+    case 'tool_result':
+      return `${event.tool} ${event.ok ? '成功' : '失败'}`
+    case 'done':
+      return `${event.reason === 'stop' ? '正常结束' : event.reason === 'length' ? '因长度结束' : '异常结束'}`
+    default:
+      const _exhaustiveCheck: never = event
+      return _exhaustiveCheck
+  }
 }
 
 /**
@@ -68,8 +114,11 @@ export function renderEvent(event: StreamEvent): string {
  */
 export function renderLegacyFrame(frame: LegacyFrame): string {
   // TODO: 'data' in frame 分支收窄
-  void frame
-  throw new Error('TODO')
+  if ('data' in frame) {
+    return `数据(${frame.data})`
+  } else {
+    return `载荷(${frame.payload})`
+  }
 }
 
 /**
@@ -83,8 +132,15 @@ export function renderLegacyFrame(frame: LegacyFrame): string {
  */
 export function formatTimestamp(v: unknown): string {
   // TODO: instanceof Date / typeof string / typeof number / 兜底
-  void v
-  throw new Error('TODO')
+  if (v instanceof Date) {
+    return v.toISOString()
+  } else if (typeof v === 'string') {
+    return v
+  } else if (typeof v === 'number') {
+    return new Date(v).toISOString()
+  } else {
+    return '未知时间'
+  }
 }
 
 // =============================================================
@@ -103,8 +159,19 @@ export function formatTimestamp(v: unknown): string {
  *   classifyError(new SyntaxError('x'))  // => 'syntax'
  *   classifyError('oops')                // => 'not-error'
  */
-export function classifyError(e: never): never {
+export function classifyError(
+  e: unknown,
+): 'syntax' | 'type' | 'range' | 'generic' | 'not-error' {
   // TODO: 占位签名是错的,从测试反推;注意 instanceof 的判断顺序
-  void e
-  throw new Error('TODO')
+  if (e instanceof SyntaxError) {
+    return 'syntax'
+  } else if (e instanceof TypeError) {
+    return 'type'
+  } else if (e instanceof RangeError) {
+    return 'range'
+  } else if (e instanceof Error) {
+    return 'generic'
+  } else {
+    return 'not-error'
+  }
 }
