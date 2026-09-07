@@ -74,6 +74,14 @@ chipRunner 支持"对话草稿":你打到一半的对话存在 localStorage 里,
 - [ ] `decodeJson` 的签名是从测试反推的,泛型 T 由守卫谓词驱动
 - [ ] 测试里 @ts-expect-error 反例保持生效(不许删)
 
+## 开工前(本周复盘的对策,流程固化)
+
+1. **先通读 `solution.test.ts` 再动笔** —— 尤其 decodeJson 部分(签名反推的图纸
+   全在里面);`loadDraft` / `decodeJson` 的 reason 字符串,**从测试里原文抄**,
+   不要凭记忆手打(本周连续三次栽在字符级差异上,从这里开始归零)
+2. `Record<string, unknown>` 今天先照题面抄用(谓词的返回形态是送你的),
+   Day 7 手写工具类型时再拆解它的原理
+
 ## 写完后
 
 贴 `src/day04/solution.ts` 过来,说:"点评 + 解释为什么"。
