@@ -13,9 +13,21 @@ import type { StreamEvent, LegacyFrame } from './solution.js'
 // =============================================================
 
 const textEvent: StreamEvent = { kind: 'text', content: '你好' }
-const toolCallEvent: StreamEvent = { kind: 'tool_call', tool: 'formatter', argsJson: '{"a":1}' }
-const toolOkEvent: StreamEvent = { kind: 'tool_result', tool: 'formatter', ok: true }
-const toolFailEvent: StreamEvent = { kind: 'tool_result', tool: 'formatter', ok: false }
+const toolCallEvent: StreamEvent = {
+  kind: 'tool_call',
+  tool: 'formatter',
+  argsJson: '{"a":1}',
+}
+const toolOkEvent: StreamEvent = {
+  kind: 'tool_result',
+  tool: 'formatter',
+  ok: true,
+}
+const toolFailEvent: StreamEvent = {
+  kind: 'tool_result',
+  tool: 'formatter',
+  ok: false,
+}
 const doneStopEvent: StreamEvent = { kind: 'done', reason: 'stop' }
 const doneLengthEvent: StreamEvent = { kind: 'done', reason: 'length' }
 const doneErrorEvent: StreamEvent = { kind: 'done', reason: 'error' }
@@ -111,7 +123,8 @@ describe('Day 3 — Part 2 renderLegacyFrame(in 收窄)', () => {
       expect(frameData.data).toBe('blob')
     }
     const framePayload: LegacyFrame = { payload: 'json', ts: 2 }
-    if (!('payload' in framePayload)) throw new Error('payload 分支不可能没有 payload')
+    if (!('payload' in framePayload))
+      throw new Error('payload 分支不可能没有 payload')
     expectTypeOf(framePayload).toEqualTypeOf<{ payload: string; ts: number }>()
   })
 
@@ -126,7 +139,9 @@ describe('Day 3 — Part 2 renderLegacyFrame(in 收窄)', () => {
 describe('Day 3 — Part 2 formatTimestamp(instanceof 收窄)', () => {
   it('Date 实例 → ISO 字符串', () => {
     expect(formatTimestamp(new Date(0))).toBe('1970-01-01T00:00:00.000Z')
-    expect(formatTimestamp(new Date(1710000000000))).toBe('2024-03-09T16:00:00.000Z')
+    expect(formatTimestamp(new Date(1710000000000))).toBe(
+      '2024-03-09T16:00:00.000Z',
+    )
   })
 
   it('字符串原样返回,数字当毫秒时间戳', () => {
