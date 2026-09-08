@@ -12,7 +12,7 @@
 | 2 | 09-03~05 | API 响应类型 + `Result<T, E>` + 泛型登场 | ✅ 16/16 | RequestState 四态联合建模 + mapResult 泛型推断 |
 | 3 | 09-06~07 | 类型守卫基础(typeof / in / instanceof)· 上 | ✅ 20/20 | |
 | 4 | 09-07 | 自定义类型守卫(is 谓词)+ unknown 解析 · 下 | ✅ 16/16 | |
-| 5 | — | 泛型函数 + extends 约束(K extends keyof T)· 上 | ⏳ | |
+| 5 | 09-07~08 | 泛型函数 + extends 约束(K extends keyof T)· 上 | ✅ 15/15 | |
 | 6 | — | 泛型进阶:默认参数 / satisfies / const 类型参数 · 下 | ⏳ | |
 | 7 | — | 工具类型深度使用 + 手写 Partial/Pick/Omit · 上 | ⏳ | |
 | 8 | — | 手写 Extract/ReturnType/Parameters · 下 + **阶段复盘** | ⏳ | |
