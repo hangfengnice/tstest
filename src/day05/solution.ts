@@ -16,7 +16,13 @@
 // =============================================================
 
 // TODO: ConversationSummary —— 会话摘要(字段见 README)
-export type ConversationSummary = never // ← 替换
+export type ConversationSummary = {
+  id: string
+  title: string
+  messageCount: number
+  pinned: boolean
+  tags: string[]
+} // ← 替换
 
 /**
  * 取数组第一个元素
@@ -29,8 +35,7 @@ export type ConversationSummary = never // ← 替换
  */
 export function firstOf<T>(items: readonly T[]): T | undefined {
   // TODO: 一行,注意 items[0] 在 noUncheckedIndexedAccess 下的类型
-  void items
-  throw new Error('TODO')
+  return items[0]
 }
 
 /**
@@ -43,9 +48,7 @@ export function firstOf<T>(items: readonly T[]): T | undefined {
  */
 export function getValue<T, K extends keyof T>(source: T, key: K): T[K] {
   // TODO: 一行;JSDoc 里解释索引访问类型 T[K]
-  void source
-  void key
-  throw new Error('TODO')
+  return source[key]
 }
 
 // =============================================================
@@ -58,11 +61,18 @@ export function getValue<T, K extends keyof T>(source: T, key: K): T[K] {
  * @example
  *   pick(conv, ['id', 'title'])  // => { id: 'c1', title: '...' },类型 Pick<ConversationSummary, 'id' | 'title'>
  */
-export function pick<T, K extends keyof T>(source: T, keys: readonly K[]): Pick<T, K> {
+export function pick<T, K extends keyof T>(
+  source: T,
+  keys: readonly K[],
+): Pick<T, K> {
   // TODO: 循环塞值;允许内部唯一一次 as(注释说明为什么躲不开)
-  void source
-  void keys
-  throw new Error('TODO')
+  return keys.reduce(
+    (acc, key) => {
+      acc[key] = source[key] // 这里的 acc[key] 编译报错,因为 acc 是 {} 类型,没有索引签名,所以要 as
+      return acc
+    },
+    {} as Pick<T, K>,
+  )
 }
 
 /**
@@ -73,12 +83,13 @@ export function pick<T, K extends keyof T>(source: T, keys: readonly K[]): Pick<
  *   // => { ...conv, messageCount: 10 },类型还是 ConversationSummary
  *   updateAt(conv, 'messageCount', 'x')  // 编译报错:值类型必须对上 T['messageCount']
  */
-export function updateAt<T, K extends keyof T>(source: T, key: K, value: T[K]): T {
+export function updateAt<T, K extends keyof T>(
+  source: T,
+  key: K,
+  value: T[K],
+): T {
   // TODO: 对象展开 + 计算键,不碰原对象
-  void source
-  void key
-  void value
-  throw new Error('TODO')
+  return { ...source, [key]: value }
 }
 
 // =============================================================
@@ -95,9 +106,10 @@ export function updateAt<T, K extends keyof T>(source: T, key: K, value: T[K]): 
  *   pluck(convs, 'title')   // => ['关于部署', '周报草稿'],类型 string[]
  *   pluck(convs, 'pinned')  // 类型 boolean[]
  */
-export function pluck(items: never, key: never): never {
+export function pluck<T, K extends keyof T>(
+  items: readonly T[],
+  key: K,
+): T[K][] {
   // TODO: 占位签名是错的,从测试反推
-  void items
-  void key
-  throw new Error('TODO')
+  return items.map((item) => item[key])
 }
