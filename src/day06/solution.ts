@@ -17,10 +17,17 @@
 // =============================================================
 
 // TODO: EventMap —— 事件名 → 载荷 的映射(见 README 表格)
-export type EventMap = never // ← 替换
+export type EventMap = {
+  'chip:run': { chipId: string; arg: string }
+  'chip:done': { chipId: string; durationMs: number }
+  'chip:error': { chipId: string; message: string }
+} // ← 替换
 
 // TODO: EventEnvelope —— 把映射表翻成带 name 判别符的联合(映射类型 + 索引访问)
-export type EventEnvelope = never // ← 替换
+export type EventEnvelope = {
+  name: keyof EventMap
+  payload: EventMap[keyof EventMap]
+} // ← 替换
 
 // =============================================================
 // Part 2 — 安全分发 + 默认类型参数 + satisfies
