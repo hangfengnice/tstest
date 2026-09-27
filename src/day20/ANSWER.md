@@ -1,6 +1,6 @@
 # Day 20 — 参考答案 + 点评要点
 
-> 使用规则：自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则：自己写完、`pnpm check:day 20` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案"，是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 以下实现**已通过本 day 全部验收测试**（vitest 24/24 双通道全绿，运行时 + 类型检查）+
@@ -210,9 +210,9 @@ extends `[null | undefined]` 不成立（string 混在里面），整体走 else
 
 ✅ null 和 undefined 各写一个分支（README 提示明说了），单成员进单标签出。
 
-### 4. TypeName 的分支顺序随手排（boolean 放最后之外的位置）
+### 4. TypeName 漏掉 undefined 分支
 
-❌ 把 `T extends boolean` 挪到 `T extends string` 之前?没事。真正的坑是:
+这些基本类型分支互斥，调整 boolean 与 string 的先后不会改变结果。这里要检查的是分支是否完整：
 
 ```ts
 T extends string ? 'string'
@@ -356,7 +356,7 @@ U 是参数化后的"删除条件"。NonNullable 是 Exclude 在 U = null | unde
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错，`npx vitest run src/day20` 全绿（24/24 双通道）
+- [ ] `pnpm check:day 20` 通过（类型检查 + 运行时测试）
 - [ ] 零 any；唯一一处 as 在 tail 里，注释解释了"slice 收不窄"的原因
 - [ ] 所有 export 有 JSDoc + @example
 - [ ] Probe1/Probe2 的对照结论写进了 TypeName 或 IsText 的 JSDoc
