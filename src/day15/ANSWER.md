@@ -1,6 +1,6 @@
 # Day 15 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 15` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -479,7 +479,7 @@ set: (value: T) => signal.set(value)   // 忘了 storage.setItem
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错、`pnpm vitest run src/day15` 全过(本 day 23 个用例)
+- [ ] `pnpm check:day 15` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`、零未注释的 `as`(memoryStorage 脚手架除外;JSON.parse 的 any 只流入不书写)
 - [ ] 三个 composable 的返回类型全部显式标注(ToggleReturn / UseFetchReturn<T> / UseLocalStorageReturn<T>)
 - [ ] `useToggle` 的 JSDoc 回答了"为什么不用泛型"(类型封闭,无调用点流入)

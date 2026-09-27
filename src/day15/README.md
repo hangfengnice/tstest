@@ -1,5 +1,36 @@
 # Day 15 — composable 泛型签名设计(useLocalStorage / useToggle / useFetch)
 
+## 重学导读
+
+**前置知识**：Day 2 请求状态、Day 4 守卫、Day 5 泛型。
+
+**今天要学会**：根据调用者需要变化的部分设计泛型，封装可测试的状态与存储行为。
+
+### 先理解三个概念
+
+| 概念 | 怎么理解 |
+|---|---|
+| 泛型是否必要 | toggle 始终处理 boolean；存储值和请求结果由调用方决定，才需要 T。先找变化点，再决定泛型参数。 |
+| 返回类型 | 把 state、操作函数和 reset 等能力组合成清晰契约；元组适合位置固定的少量返回值，对象适合命名能力。 |
+| 外部输入 | Serializer<T> 的 parse 返回 T 是协议承诺，JSON.parse 本身不保证它。真实数据需加守卫或后续 Day 25 的 schema。 |
+
+### 动手顺序
+
+先读 Signal 和内存存储 → 完成 useToggle → 用假 fetcher 验证四态 → 最后处理存储初始化、失败回退、set/reset。
+
+先读 [验收测试](./solution.test.ts)，再编辑 [练习实现](./solution.ts)。已有实现时先按[重学方法](../../docs/LEARNING-ORDER.md)保存历史，再独立重写；不要用旧代码的通过结果代替本轮练习。
+
+### 学完自测
+
+- **解释**：为什么把可变主题推断成唯一的 dark 字面量可能不合适？parse 失败与存储缺失的回退行为如何验证？
+- **迁移**：为列表分页大小设计持久化状态，列出初始化和重置时的值变化。
+- **验收**：在项目根目录运行 `pnpm check:day 15`，同时看类型检查与运行时测试。
+- **记录**：按[每日自评模板](../../docs/DAILY-REVIEW-TEMPLATE.md)记录本次结果；参考答案在整题通过后再看。
+
+下面保留完整题目与验收要求。一天可拆成多次学习，导读中的先后顺序不减少整题要求。
+
+---
+
 ## 业务场景
 
 chipRunner 的**设置页**有三个经典 composable 需求:
@@ -33,7 +64,7 @@ chipRunner 的**设置页**有三个经典 composable 需求:
    - 初始 idle;`execute()` 先置 loading,成功置 success,失败置 error
    - fetcher 以 **ApiError 形状的对象** reject → 原样进入 error 分支
    - reject 的是别的东西(比如普通 Error)→ 收窄(catch 到的是 `unknown`,别忘了 `useUnknownInCatchVariables`)后包装成 `{ code: 0, message: '网络异常' }`
-   - 状态转移是状态机:**success 之后不能再变 loading**(下一次 execute 之前)
+   - 一次 execute 内按 loading → success/error 更新；下一次 execute 可以重新进入 loading。本题不实现完整并发请求协调。
 
 ## Part 3 — 🔴 边界:useLocalStorage 完整签名(从测试反推)
 
@@ -56,7 +87,7 @@ chipRunner 的**设置页**有三个经典 composable 需求:
 
 ## 验收点
 
-- [ ] `pnpm typecheck` 零错,`pnpm vitest run src/day15` 全过
+- [ ] `pnpm check:day 15` 通过（类型检查 + 运行时测试；未完成的占位代码报错是预期现象）
 - [ ] 三个 composable 的返回类型全部**显式标注**(定义 `UseXxxReturn` 别名,不靠推导)
 - [ ] `useToggle` 的 JSDoc 回答了"为什么不用泛型"
 - [ ] `Serializer<T>` 的 JSDoc 回答了"为什么要泛型"
@@ -67,3 +98,7 @@ chipRunner 的**设置页**有三个经典 composable 需求:
 
 贴 `solution.ts`,说:"点评 + 解释为什么"。
 建议节奏:Part 1 25 分钟 → Part 2 35 分钟 → Part 3 40 分钟。卡超过 10 分钟来要提示。
+
+---
+
+[上一题：Day 14](../day14/README.md) · [学习目录](../../docs/LEARNING-ORDER.md) · [下一题：Day 16](../day16/README.md)
