@@ -37,7 +37,7 @@ export function isThemeMode(value: unknown): value is ThemeMode {
 }
 
 /**
- * 读主题配置;非法值或未配置时返回 'auto'(签名已给)
+ * 读主题配置;未配置时返回 'auto',非法值抛错(签名已给)
  *
  * @example
  *   setConfig('theme', 'dark')

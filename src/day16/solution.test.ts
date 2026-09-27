@@ -41,7 +41,7 @@ describe('Day 16 — Part 1 legacy-config.d.ts 精确化', () => {
   })
 
   it('setConfig / hasConfig / deleteConfig / listKeys 签名', () => {
-    expectTypeOf(setConfig('k', 1)).toEqualTypeOf<ConfigValue | undefined>()
+    expectTypeOf(setConfig('k', 1)).toEqualTypeOf<unknown>()
     expectTypeOf(hasConfig('k')).toEqualTypeOf<boolean>()
     expectTypeOf(deleteConfig('k')).toEqualTypeOf<boolean>()
     expectTypeOf(listKeys()).toEqualTypeOf<string[]>()
@@ -61,13 +61,37 @@ describe('Day 16 — Part 1 legacy-config.d.ts 精确化', () => {
     expect(listKeys()).toEqual(['a', 'b'])
   })
 
-  it('getConfig 重载:不传 fallback 是 unknown;传了是 T(保留字面量!)', () => {
+  it('getConfig 无论是否传 fallback 都需要收窄', () => {
     expectTypeOf(getConfig('x')).toEqualTypeOf<unknown>()
-    // T extends ConfigValue 的约束会保留字面量(Day 6 的知识):'f' 不会拓宽成 string
-    expectTypeOf(getConfig('x', 'f')).toEqualTypeOf<'f'>()
-    expectTypeOf(getConfig('x', 42)).toEqualTypeOf<42>()
-    // 想要拓宽的 string?显式传泛型参数
-    expectTypeOf(getConfig<string>('x', 'f')).toEqualTypeOf<string>()
+    expectTypeOf(getConfig('x', 'f')).toEqualTypeOf<unknown>()
+    expectTypeOf(getConfig('x', 42)).toEqualTypeOf<unknown>()
+  })
+
+  it('已有值与默认值类型不同，默认值不转换已有值', () => {
+    setConfig('retries', 123)
+    const actual = getConfig('retries', 'fallback')
+    expectTypeOf(actual).toEqualTypeOf<unknown>()
+    expect(actual).toBe(123)
+    expect(getConfig('missing', 'fallback')).toBe('fallback')
+  })
+
+  it('历史 JS 写入可绕过输入契约，读取与旧值出口仍需收窄', () => {
+    const legacyValue = { enabled: true }
+    // @ts-expect-error —— 模拟未受 TypeScript 约束的 JS 调用，不是推荐的业务写法
+    setConfig('legacy', legacyValue)
+    const current = getConfig('legacy', false)
+    const previous = setConfig('legacy', true)
+    expectTypeOf(current).toEqualTypeOf<unknown>()
+    expectTypeOf(previous).toEqualTypeOf<unknown>()
+    expect(current).toBe(legacyValue)
+    expect(previous).toBe(legacyValue)
+  })
+
+  it('false、0 和空字符串不会触发 fallback', () => {
+    for (const value of [false, 0, '']) {
+      setConfig('value', value)
+      expect(getConfig('value', 'fallback')).toBe(value)
+    }
   })
 
   it('d.ts 契约比运行时更窄(反例)', () => {

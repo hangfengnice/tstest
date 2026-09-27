@@ -1,10 +1,11 @@
 # Day 16 — 参考答案 + 点评要点
 
-> 使用规则：自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则：自己写完、`pnpm check:day 16` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案"，是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
-以下实现**已通过本 day 全部验收测试**（vitest 16/16 双通道全绿）+ `pnpm typecheck`
-（day16 相关的 44 个骨架期错误全部消失，无新增错误）。
+以下参考实现配合修订后的 `pnpm check:day 16` 验收：外部配置出口使用 `unknown`，
+由守卫包装函数提供业务类型。验证时在临时目录提取参考实现，不覆盖学习者的骨架。
+修订后已验证：类型检查通过，运行时测试 19/19 通过。
 
 ---
 
@@ -43,36 +44,24 @@ export const CONFIG_VERSION: '3.2.1'
 export type ConfigValue = string | number | boolean
 
 /**
- * 读配置 —— 重载 1:不传 fallback。
- * 无类型 JS 的出口必须是 unknown(不是 any):
- * unknown 强迫调用方先收窄再用,any 会顺着赋值污染整条调用链。
+ * 读配置。fallback 仅在存储值为 undefined 时生效，不校验或转换已有值。
+ * 输入限制为 ConfigValue，但历史 JS 数据仍不可信，返回 unknown 后先收窄。
  *
  * @example
- * const v: unknown = getConfig('theme') // 出口是 unknown,收窄交给调用方
+ * setConfig('retries', 3)
+ * const value: unknown = getConfig('retries', 'fallback') // 实际返回 3
  */
-export function getConfig(key: string): unknown
-/**
- * 读配置 —— 重载 2:传了 fallback `T` 就返回 `T`(key 不存在时的替代值)。
- * 约束 `T extends ConfigValue` 有个副作用(也是特性):字面量会被保留 ——
- * `getConfig('x', 'f')` 的返回类型是 `'f'` 而不是 `string`。
- * 想要拓宽的 string,显式传泛型参数:`getConfig<string>('x', 'f')`。
- *
- * @example
- * getConfig('x', 42)              // => 42
- * getConfig<string>('x', 'f')     // => string
- */
-export function getConfig<T extends ConfigValue>(key: string, fallback: T): T
+export function getConfig(key: string, fallback?: ConfigValue): unknown
 
 /**
- * 写配置;返回写入前的旧值(首次写入没有旧值,返回 undefined)。
- * 返回 `ConfigValue | undefined` 而不是 `unknown`:旧值要么是契约内合法值、要么没有,
- * 这是"出口类型跟着语义走",比一股脑 unknown 更好用。
+ * 写配置并返回旧值。当前写入受 ConfigValue 约束，旧值可能来自无类型 JS 调用。
+ * 声明文件不做运行时校验，不能据此把历史值限制为 ConfigValue。
  *
  * @example
- * setConfig('theme', 'dark')  // => undefined(首次)
- * setConfig('theme', 'light') // => 'dark'(上一次的旧值)
+ * const previous: unknown = setConfig('theme', 'dark')
+ * if (typeof previous === 'string') console.log(previous.toUpperCase())
  */
-export function setConfig(key: string, value: ConfigValue): ConfigValue | undefined
+export function setConfig(key: string, value: ConfigValue): unknown
 
 /**
  * 是否存在这个 key。
@@ -250,48 +239,33 @@ export type RenderPieFn = typeof renderPie
 顺带一提（实测）：`export const CONFIG_VERSION = '3.2.1'`（省略注解、直接初始化）
 在 `.d.ts` 里也是合法的，且会推导出字面量 `'3.2.1'`。但显式注解更符合"契约先行"的表达意图。
 
-### 2. 想用一条签名写完 getConfig（写不出 unknown 出口）
+### 2. 默认值决定返回类型的错误承诺
 
-❌ `export function getConfig<T extends ConfigValue>(key: string, fallback?: T): T`
+❌ `getConfig<T extends ConfigValue>(key: string, fallback: T): T`
 
-现象：`getConfig('x')` 编译不报错（TS 推断不出 T 时会**兜底到约束** `ConfigValue`），
-但测试 `expectTypeOf(getConfig('x')).toEqualTypeOf<unknown>()` 红。
-为什么错："不传 fallback 返回 unknown、传了返回 T"是**两种不同形状的调用**，
-一个可选参数糊不出两条返回类型 —— 这正是函数重载存在的意义。
+先 `setConfig('x', 123)`，再 `getConfig('x', 'f')`，实际得到数字 123。
+默认值只覆盖“没有值”，既不校验已有数据，也不将数字转换成字符串。
+用泛型或重载声明返回 `'f'` 都无法改变运行时行为。
 
-✅ 两条重载签名依次声明：
+✅ `getConfig(key: string, fallback?: ConfigValue): unknown`，调用方先收窄。
 
-```ts
-export function getConfig(key: string): unknown
-export function getConfig<T extends ConfigValue>(key: string, fallback: T): T
-```
+### 3. 把旧值也当成受约束的输入
 
-### 3. 重载外再写"全能兜底签名"会遮蔽字面量
+❌ `setConfig(key: string, value: ConfigValue): ConfigValue | undefined`
 
-❌ 在两条重载前面加一条宽签名：
+当前的 value 受声明约束，但旧值可能是历史 JS 调用写入的对象。
+测试刻意用一个 `@ts-expect-error` 调用模拟这种路径，证明读取和旧值出口都要保留 `unknown`。
 
-```ts
-export function getConfig(key: string, fallback?: ConfigValue): ConfigValue | undefined
-export function getConfig<T extends ConfigValue>(key: string, fallback: T): T
-```
+✅ `setConfig(key: string, value: ConfigValue): unknown`。
 
-现象：`getConfig('x', 'f')` 的返回类型变成 `ConfigValue | undefined`，
-`expectTypeOf(getConfig('x', 'f')).toEqualTypeOf<'f'>()` 红。
-为什么错：**重载解析取第一条匹配的签名**（overload resolution is first-match-wins）。
-宽签名在前，所有调用都先被它吃掉，后面的窄签名永远轮不到。
-顺序原则：签名从窄到宽排。
+### 4. 放宽 fallback 输入，丢掉契约
 
-### 4. 泛型约束丢了 → 反例抓不住
+❌ `getConfig(key: string, fallback?: unknown): unknown`
 
-❌ `export function getConfig<T>(key: string, fallback: T): T`（不写 `extends ConfigValue`）
+虽然返回类型诚实，但对象默认值也能通过编译，违背题目要求的输入契约。
+已有测试中的 `@ts-expect-error` 会因此变成未使用指令。
 
-现象（实测）：`getConfig('k', { a: 1 })` **编译通过** —— T 直接推成 `{ a: number }`。
-于是测试里的 `// @ts-expect-error` 变成 **TS2578: Unused '@ts-expect-error' directive**，
-vitest 类型通道直接红。
-为什么错：无约束的 T 是"什么都接受"，契约收窄完全失效。
-约束 `T extends ConfigValue` 在这里的真正作用**不是保留字面量，而是拒绝契约外的实参**。
-
-✅ `export function getConfig<T extends ConfigValue>(key: string, fallback: T): T`
+✅ fallback 保持可选的 `ConfigValue`；无需为了输入约束引入泛型。
 
 ### 5. 守卫里数组 includes 吃 unknown（TS2345）
 
@@ -438,8 +412,7 @@ was imported using 'import type'.`
 
 现象：`expectTypeOf<RenderPieFn>().toEqualTypeOf<
 (el: string, points: readonly ChartPoint[]) => number>()` 红（TS2344）。
-为什么错：可变数组类型和只读数组类型**互不兼容**（`ChartPoint[]` 不能赋给
-`readonly ChartPoint[]` 的位置反过来才行）。渲染函数语义上只读，
+为什么错：可变数组可以赋给只读数组类型，反向不成立；只接受可变数组的函数不能承诺接收只读数组。渲染函数语义上只读，
 `readonly` 同时表达了"我不改你的数据"的 API 承诺。
 
 ✅ `points: readonly ChartPoint[]`
@@ -489,37 +462,22 @@ ChartPoint 天然指向被扩充模块的导出。多这条 import 反而暗示"
    `src/legacy-charts.ts`，只存在于 charts.d.ts 的 ambient 声明里。值 import 留给
    运行时解析（炸，见坑 12），`import type` 编译期整体擦除（安全）。
 
-### NOTES 思考：字面量保留 vs 拓宽，各自的触发条件（实测版）
+### NOTES 思考：输入契约与输出保证
 
-先给结论，再给实测证据（本机 TS 5.6 + strict 验证过）：
-
-| 场景 | `'f'` 的命运 |
-|---|---|
-| `const x = 'f'` 然后 `getConfig('k', x)` | **拓宽成 string**（变量声明的常规化） |
-| `getConfig('k', 'f')`（有 `T extends ConfigValue`） | **保留 `'f'`** |
-| `getConfig('k', 'f')`（无约束 `<T>`，实测） | **也保留 `'f'`** —— 注意！ |
-| `getConfig<string>('k', 'f')` | 显式指定，就是 `string` |
-| `let s = 'f'; getConfig('k', s)` | **拓宽成 string**（let 声明拓宽） |
-
-准确表述：**泛型 T 从"字面量实参"直接推断时，字面量被保留**（根位置推断不拓宽，
-有没有约束都一样）。真正会发生拓宽的是**变量中转**——`let s = 'f'` 的声明类型是
-`string`（拓宽发生在变量声明，不是泛型推断），传进去自然推断出 `string`。
-所以想要拓宽的 string 有两条路：先存进变量再传，或显式传泛型参数
-`getConfig<string>('k', 'f')`。
-
-那 `T extends ConfigValue` 这个约束到底扛了什么？**契约收窄**——它拒绝
-`getConfig('k', { a: 1 })`（坑 4 的实证）。"保留字面量"的功劳在"字面量直接作为
-推断源"这件事上，约束保证的是"推断源必须合法"。两个知识点别记混。
+声明文件会检查 TypeScript 调用方的输入，但不会改变 JS 实现或校验历史数据。
+默认值只处理缺失，无法证明已存在的值符合相同类型。
+因此底层出口使用 `unknown`，`readThemeMode` / `readFeatureFlags` 再通过运行时守卫
+建立业务类型保证。解释时各举一个“缺失”“合法”“非法”的例子。
 
 ---
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错，`npx vitest run src/day16` 全过（16/16）
+- [ ] `pnpm check:day 16` 通过（类型检查 + 运行时测试）
 - [ ] legacy-config.js 和 charts.d.ts 一个字没改（`git diff` 可查）
-- [ ] d.ts 里没有 any；无 fallback 的 getConfig 出口是 `unknown`
+- [ ] d.ts 里没有 any；getConfig 无论是否传 fallback 都返回 `unknown`，setConfig 的旧值也返回 `unknown`
 - [ ] 所有 export 有中文 JSDoc + `@example`（d.ts 里也写了）
 - [ ] `setConfig('k', { a: 1 })` 编译报错（契约收窄生效）
 - [ ] `RenderPieFn` 的第二个参数是 `readonly ChartPoint[]`
-- [ ] NOTES.md 记了一条：字面量保留 vs 拓宽的触发条件（可用上文表格校对）
+- [ ] NOTES.md 解释了默认值为何不能保证已有值的类型，以及守卫如何建立业务类型保证
 - [ ] 额外自查：你的 isThemeMode 实现里有几个 `as`？（参考答案：0 个）
