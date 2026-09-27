@@ -1,6 +1,6 @@
 # Day 10 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 10` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 以下参考实现已通过本 day 全部验收测试(`npx vitest run src/day10` 38/38 全绿,`pnpm typecheck` 本 day 零错误)。
@@ -433,7 +433,7 @@ data 的形状由 to 决定 —— 参数之间的依赖,平铺参数表达不�
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全过
+- [ ] `pnpm check:day 10` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`、零 `as`(本 day 应该可以做到)
 - [ ] 所有 export 有 JSDoc + `@example`
 - [ ] 每个状态的数据只在该状态分支可见(draft 取 requestId 编译报错)
