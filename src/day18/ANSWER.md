@@ -1,6 +1,6 @@
 # Day 18 — 参考答案 + 点评要点
 
-> 使用规则：自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则：自己写完、`pnpm check:day 18` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案"，是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 以下实现**已通过本 day 全部验收测试**（vitest 29/29 双通道全绿，运行时 + 类型检查）+
@@ -657,7 +657,7 @@ if (envelope.code === 0) {
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错，`npx vitest run src/day18` 全过（29/29 双通道）
+- [ ] `pnpm check:day 18` 通过（类型检查 + 运行时测试）
 - [ ] `advance('sent', 'draft')` 编译报错（LegalNext<'sent'> 是 never）
 - [ ] TransitionTable 每个 key 是**各自**的字面量元组（不是 Record 抹平版）
 - [ ] 值层查表用了宽标注，includes 零 as（对照常见错误第 2 条）
