@@ -1,6 +1,6 @@
 # Day 21 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 21` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -22,10 +22,9 @@ export type ServerOrder = {
 }
 
 // —— 基础 1:自实现 Partial ——
-// 值列必须是 T[K] | undefined:本仓库开着 exactOptionalPropertyTypes,
-// `?: T[K]` 的语义是"出现时不能是 undefined",显式赋 { name: undefined } 会报 TS2375。
+// 保留原字段的值类型；可选性不自动允许显式 undefined。
 export type MyPartial<T> = {
-  [K in keyof T]?: T[K] | undefined
+  [K in keyof T]?: T[K]
 }
 
 // —— 基础 2:自实现 Readonly(注意:浅只读)——
@@ -38,7 +37,7 @@ export type Mutable<T> = {
   -readonly [K in keyof T]: T[K]
 }
 
-// —— 进阶 4:-? 全必填(会把 | undefined 一并减掉)——
+// —— 进阶 4:-? 移除可选标记；当前配置下保留显式声明的 undefined ——
 export type RequiredAll<T> = {
   [K in keyof T]-?: T[K]
 }
@@ -67,7 +66,8 @@ export function toRefsOwn<T extends object>(obj: T): Refs<T> {
     // 运行时 key 必然来自 obj 自身 —— 类型系统表达不了、运行时显然正确
     result[key] = { value: (obj as Record<string, unknown>)[key] }
   }
-  // as #2:"逐键完整填充"是运行时事实不是静态事实,
+  // as #2:在本题普通数据对象（自有可枚举字符串键）的输入约定下逐键填充；
+  // Object.keys 不遍历 symbol、不可枚举或继承属性，不能将此承诺推广到任意 object。
   // 动态构建的 Record 与映射类型 Refs<T> 无法互相证明
   return result as Refs<T>
 }
@@ -75,21 +75,11 @@ export function toRefsOwn<T extends object>(obj: T): Refs<T> {
 
 ## 二、常见错误写法(点评人视角)
 
-### 1. MyPartial 忘了 `| undefined`(本仓库必踩)
+### 1. 给 Partial 额外加上 undefined
 
-```ts
-❌ export type MyPartial<T> = { [K in keyof T]?: T[K] }
-```
+`{ [K in keyof T]?: T[K] | undefined }` 会扩大允许写入的值，当前配置下不等于内置 Partial。内置定义是 `{ [P in keyof T]?: T[P] }`。
 
-现象:`const draft: MyPartial<UserProfile> = { name: undefined }` 直接报
-**TS2375**: `Type '{ name: undefined; }' is not assignable to type 'MyPartial<UserProfile>' with 'exactOptionalPropertyTypes: true'`。
-原因:`exactOptionalPropertyTypes` 把"可选"和"可为 undefined"拆成了两件事 —— `?: string`
-表示"可以整个没有,但**出现**就必须是 string"。lib 源码显式写 `T[P] | undefined`,
-就是为了让"字段在,但值是 undefined"的草稿合法。已实测验证,不是理论。
-
-```ts
-✅ export type MyPartial<T> = { [K in keyof T]?: T[K] | undefined }
-```
+`Partial<{ name: string }>` 允许 `{}`，拒绝 `{ name: undefined }`；`Partial<{ name: string | undefined }>` 才允许后一种写法。读取两者的 name 都可能得到 undefined，因此只比较读取结果不足以验证赋值规则，测试应保留直接赋值反例。
 
 ### 2. readonly 写到了值的位置
 
@@ -130,7 +120,7 @@ read-only property`)挂掉。同构映射会**继承**原属性的全部修饰�
 现象:对 `email?: string` 这种字段**毫无作用** —— 值列没动、问号被同构映射继承了,
 `RequiredAll<UserProfile>` 里 email 照样可选,测试"缺 email 必须报错"挂
 (@ts-expect-error 变 unused,**TS2578**)。`-?` 是一个完整动作:去问号
-**并且**把 `undefined` 从值联合里减掉 —— 这是它和"手动删问号"的本质区别。
+在当前精确可选配置下，它移除可选标记；如果值类型显式包含 undefined，则保留该成员。
 
 ```ts
 ✅ export type RequiredAll<T> = { [K in keyof T]-?: T[K] }
@@ -158,9 +148,7 @@ read-only property`)挂掉。同构映射会**继承**原属性的全部修饰�
    }
 ```
 
-现象:**所有键全部消失**,`OmitOwn<UserProfile, 'id'>` 变成 `{}` —— as never
-是"这个键不要了",你把不在名单里的也 never 掉了。toEqualTypeOf 挂,而且挂得
-很安静(两边都是空对象形状时错误信息反而不直观)。另外题面明令禁止
+现象：条件写反后只保留 id，其他键被删除，效果接近 Pick 而不是 Omit。映射到 never 的键才会被移除。另外题面明令禁止
 `Pick<T, Exclude<keyof T, K>>` 路线 —— 那是内置 Omit 的实现,今天练的是
 "全遍历 + 逐键改名 never"这条另一条路。
 
@@ -221,13 +209,9 @@ TS 无法知道这些 string 其实是 `keyof T`。这就是 README 提示的
 
 ## 三、思考题参考答案
 
-### 基础题 1 — 为什么值列是 `T[P] | undefined` 而不只是 `T[P]`?
+### 基础题 1 — 可选属性为什么不自动允许显式 undefined？
 
-见常见错误 1。核心:`exactOptionalPropertyTypes: true` 下,`?: T` 与 `?: T | undefined`
-是**两个不同的类型** —— 前者禁止显式 undefined,后者允许。lib 选择后者,因为
-Partial 的语义是"填了一半也算",`{ name: undefined }`(显式占位)应当合法。
-动手验证:去掉 `| undefined`,赋值报 TS2375,错误信息会明确建议
-"Consider adding 'undefined' to the types of the target's properties"。
+exactOptionalPropertyTypes 区分键缺失与键存在但值为 undefined。内置 Partial 只加可选修饰符，不扩大字段的值类型。检查本地 lib.es5.d.ts，并用合法省略、非法显式 undefined、原字段含 undefined 三种赋值验证。
 
 ### 基础题 2 — MyReadonly 是浅只读,内层为什么没冻结?
 
@@ -236,13 +220,9 @@ Partial 的语义是"填了一半也算",`{ name: undefined }`(显式占位)应�
 "第一层的属性槽位"。深冻结需要递归:值列写成 `DeepReadonly<T[K]>`(Day 23)。
 Vue 的 `readonly()` 是运行时递归代理,和类型层 DeepReadonly 是同一件事的两个世界。
 
-### 进阶题 4 — `-?` 为什么会同时减掉 `| undefined`?
+### 进阶题 4 — -? 会移除什么？
 
-可选属性在 TS 内部表示为"属性类型 ∪ undefined + 可缺省标记"。`-?` 的语义是
-"把这个属性恢复成必填的完整动作",实现上就是把这两件事一起还原 —— 所以
-`RequiredAll<Partial<{name: string}>>` 得到 `{ name: string }` 而不是
-`{ name: string | undefined }`。这也是它和"手动删问号"的区别:你手动删,
-联合里的 undefined 还在。
+它移除属性的可选标记。当前配置下 `Required<{ name?: string }>` 得到必填 string，而 `Required<{ name?: string | undefined }>` 得到必填的 string | undefined。不要把“去掉缺失的可能”概括为“删除所有 undefined”。
 
 ### 边界题 7 — as 子句里的键转换是什么类型?
 
@@ -261,10 +241,10 @@ Vue 的 `readonly()` 是运行时递归代理,和类型层 DeepReadonly 是同�
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全绿
+- [ ] `pnpm check:day 21` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`;`as` 只出现在 `toRefsOwn`(≤2 处,每处有注释)
 - [ ] 所有 export 有 JSDoc + `@example`
-- [ ] `MyPartial` 值列带 `| undefined`,JSDoc 写清 TS2375 实验结论
+- [ ] `MyPartial` 保留原值类型，JSDoc 解释省略、显式 undefined 与读取结果的区别
 - [ ] `MyReadonly` 的 JSDoc 写明"浅只读"事实与原因
 - [ ] `OmitOwn` 走 as never 路线(没用 Pick/Exclude 凑);`RenameKeys` 用 as 改键
 - [ ] 测试里的 `@ts-expect-error` 全部精准命中:readonly 赋值、缺 email、

@@ -19,8 +19,8 @@ import type {
 describe('Day 21 — 🟢 MyPartial(自实现 Partial)', () => {
   it('所有字段变可选', () => {
     expectTypeOf<MyPartial<{ name: string; age: number }>>().toEqualTypeOf<{
-      name?: string | undefined
-      age?: number | undefined
+      name?: string
+      age?: number
     }>()
   })
 
@@ -28,9 +28,21 @@ describe('Day 21 — 🟢 MyPartial(自实现 Partial)', () => {
     expectTypeOf<MyPartial<UserProfile>>().toEqualTypeOf<Partial<UserProfile>>()
   })
 
-  it('可选字段 + | undefined:显式传 undefined 也合法(exactOptionalPropertyTypes 下)', () => {
+  it('精确可选属性不自动接受显式 undefined', () => {
+    // @ts-expect-error —— name 原本是 string，可选不等于允许显式 undefined
     const draft: MyPartial<UserProfile> = { name: undefined }
     void draft
+  })
+})
+
+describe('Day 21 — 可选属性的赋值边界', () => {
+  it('与内置 Partial 双向赋值，显式允许 undefined 的原字段仍保留它', () => {
+    const own: MyPartial<{ name: string }> = {}
+    const builtin: Partial<{ name: string }> = own
+    const roundTrip: MyPartial<{ name: string }> = builtin
+    const explicit: MyPartial<{ name: string | undefined }> = { name: undefined }
+    const required: RequiredAll<{ name?: string | undefined }> = { name: undefined }
+    void [roundTrip, explicit, required]
   })
 })
 
@@ -78,7 +90,7 @@ describe('Day 21 — 🟡 Mutable(-readonly 解除只读)', () => {
 })
 
 describe('Day 21 — 🟡 RequiredAll(-? 全必填)', () => {
-  it('可选字段全部变必填,且 undefined 被减掉', () => {
+  it('可选字段全部变必填', () => {
     expectTypeOf<RequiredAll<Partial<{ name: string; age: number }>>>().toEqualTypeOf<{
       name: string
       age: number

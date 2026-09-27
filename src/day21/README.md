@@ -1,5 +1,36 @@
 # Day 21 — 映射类型:表单引擎的类型工厂
 
+## 重学导读
+
+**前置知识**：Day 7 映射修饰符、Day 20 条件类型。
+
+**今天要学会**：分别控制属性名、属性值和修饰符，完成类型转换。
+
+### 先理解三个概念
+
+| 概念 | 怎么理解 |
+|---|---|
+| 映射的三处变化 | 键决定有哪些属性，值决定属性类型，修饰符决定能否缺省或修改；一次只改一个位置便于理解。 |
+| 可选与显式 undefined | 内置 Partial 使用 `?: T[K]`。当前精确可选配置下，给原本为 string 的字段显式赋 undefined 仍应报错。 |
+| 类型与运行时改名 | RenameKeys 只产生新类型，不会重命名已有对象；toRefsOwn 才实际生成包装对象，也不是 Vue 的响应式引用。 |
+
+### 动手顺序
+
+先复现 Partial/Readonly → 改 -readonly/-? → 包装值 → 筛键/改键 → 最后实现 toRefsOwn 并说明遍历范围。
+
+先读 [验收测试](./solution.test.ts)，再编辑 [练习实现](./solution.ts)。已有实现时先按[重学方法](../../docs/LEARNING-ORDER.md)保存历史，再独立重写；不要用旧代码的通过结果代替本轮练习。
+
+### 学完自测
+
+- **解释**：为什么 -? 不应无条件删除类型里显式声明的 undefined？类型改了键名，原对象的键会同步变化吗？
+- **迁移**：为后端 desc/amt 设计前端名称映射，分别列出类型转换与运行时转换的工作。
+- **验收**：在项目根目录运行 `pnpm check:day 21`，同时看类型检查与运行时测试。
+- **记录**：按[每日自评模板](../../docs/DAILY-REVIEW-TEMPLATE.md)记录本次结果；参考答案在整题通过后再看。
+
+下面保留完整题目与验收要求。一天可拆成多次学习，导读中的先后顺序不减少整题要求。
+
+---
+
 > 前两天你在"从类型里挖零件"(infer)和"拆联合"(分布式)。
 > 今天反过来:**遍历一个类型的所有键,批量生成新类型** —— `[K in keyof T]` 一行,
 > 就是 Partial / Readonly / Pick / Omit 全家的母体。再加上 `as` 重映射(改键名)和
@@ -45,14 +76,12 @@ type Probe<T> = { [K in keyof T]: T[K] }
 
 | 输入 | 输出 |
 |---|---|
-| `MyPartial<{ name: string; age: number }>` | `{ name?: string \| undefined; age?: number \| undefined }` |
+| `MyPartial<{ name: string; age: number }>` | `{ name?: string; age?: number }` |
 | `MyPartial<UserProfile>` | 与内置 `Partial<UserProfile>` 完全相等 |
 
-**思考(写进 JSDoc)**:为什么 lib 源码写的是 `T[P] | undefined` 而不只是 `T[P]`?
-(本仓库开着 `exactOptionalPropertyTypes`:去掉 `| undefined` 后,
-`const p: MyPartial<X> = { name: undefined }` 还能过吗?动手验证,结论写进 JSDoc。)
+**思考（写进 JSDoc）**：内置 Partial 的值列是 `T[P]`。在当前 `exactOptionalPropertyTypes` 配置下，为什么 `{ name: undefined }` 不能赋给 `Partial<{ name: string }>`？若原字段显式包含 undefined，结果又怎样？
 
-**提示**:循环体 `+?`(默认加,可省 `+`);值列记得处理 `undefined`。
+**提示**：用 `?` 修改可选性，保留原字段的值类型，不额外添加 undefined。
 
 ### 🟢 基础题 2 — `MyReadonly<T>`:自实现 Readonly
 
@@ -97,7 +126,7 @@ JSDoc 回答:**`MyReadonly` 是浅只读** —— 嵌套对象的内层为什么
 **要求**:测试里有 `@ts-expect-error` 验证:缺 `email` 的对象赋给 `RequiredAll<UserProfile>`
 必须编译报错。
 
-**提示**:`-?` 同时会把 `| undefined` 从值里减掉(这是它和"手动去掉问号"的区别,想想为什么)。
+**提示**：`-?` 移除可选标记。在当前精确可选配置下，原字段显式写出的 `| undefined` 会保留；不要把读取可选字段时的 undefined 与声明中允许的值混淆。
 
 ### 🟡 进阶题 5 — `Refs<T>`:值包装(不变修饰符,变值)
 
@@ -171,10 +200,10 @@ const refs = toRefsOwn({ count: 1, name: 'chip' })
 
 ## 验收点
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全绿
+- [ ] `pnpm check:day 21` 通过（类型检查 + 运行时测试；未完成的占位代码报错是预期现象）
 - [ ] 零 `any`;`as` 只允许出现在 `toRefsOwn`(≤2 处,带注释)
 - [ ] 所有 export 有 JSDoc + `@example`
-- [ ] `MyPartial` 的 `| undefined` 思考题、`MyReadonly` 的"浅只读"事实写进 JSDoc
+- [ ] `MyPartial` 的可选属性思考题、`MyReadonly` 的"浅只读"事实写进 JSDoc
 - [ ] `OmitOwn` 用 as never 实现;`RenameKeys` 用 as 改键实现(不许用 Pick/Exclude 凑)
 - [ ] 测试里的 `@ts-expect-error` 反例实现后依然精准命中(不留 unused)
 
@@ -183,3 +212,12 @@ const refs = toRefsOwn({ count: 1, name: 'chip' })
 贴 `solution.ts` 过来,说:"点评 + 解释为什么"。
 
 **建议节奏**:🟢 20 分钟 → 🟡 35 分钟 → 🔴 45 分钟。卡超过 15 分钟再来问,要提示不要答案。
+
+## 本题运行时输入边界
+
+`toRefsOwn` 的 Object.keys 实现针对自有、可枚举、字符串键的普通数据对象，返回的是值的包装快照；
+不承诺覆盖 symbol、不可枚举或原型字段，也不是 Vue 的响应式 toRefs。泛型类型本身不能证明这些运行时属性，迁移到其他对象形态时需扩展遍历策略和验收用例。
+
+---
+
+[上一题：Day 20](../day20/README.md) · [学习目录](../../docs/LEARNING-ORDER.md) · [下一题：Day 22](../day22/README.md)

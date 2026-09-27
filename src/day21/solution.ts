@@ -46,9 +46,9 @@ export type ServerOrder = {
 // =============================================================
 
 // TODO: MyPartial —— 自实现 Partial,所有字段变可选
-// 规格:MyPartial<{ name: string; age: number }> = { name?: string | undefined; age?: number | undefined }
+// 规格:MyPartial<{ name: string; age: number }> = { name?: string; age?: number }
 //       与内置 Partial<T> 完全相等
-// JSDoc 必须回答:为什么值列要写 | undefined?(exactOptionalPropertyTypes 下去掉它会怎样?动手验)
+// JSDoc 必须回答:可省略与显式 undefined 有何区别?对比原字段是否包含 undefined。
 export type MyPartial<T> = never & T // ← 替换(never & T 恒等于 never,写 & T 只是让骨架通过 noUnusedParameters 检查)
 
 // TODO: MyReadonly —— 自实现 Readonly,所有字段加 readonly
@@ -65,7 +65,7 @@ export type MyReadonly<T> = never & T // ← 替换(never & T 恒等于 never,�
 export type Mutable<T> = never & T // ← 替换(never & T 恒等于 never,见上)
 
 // TODO: RequiredAll —— 全必填(-?)
-// 规格:RequiredAll<Partial<{ name; age }>> = { name: string; age: number }(undefined 一并减掉)
+// 规格:RequiredAll<Partial<{ name; age }>> = { name: string; age: number }(移除可选标记，显式声明的 undefined 保留)
 //       与内置 Required<Partial<T>> 相等;缺字段必须编译报错
 export type RequiredAll<T> = never & T // ← 替换(never & T 恒等于 never,见上)
 
