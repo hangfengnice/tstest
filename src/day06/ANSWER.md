@@ -1,6 +1,6 @@
 # Day 6 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 06` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 以下参考实现已通过本 day 全部验收测试(`npx vitest run src/day06` 28/28 全绿,`pnpm typecheck` 本 day 零错误)。
@@ -152,7 +152,7 @@ export type ChipRegistry = {
  *     → 普通泛型 T 会对字面量做拓宽推断,不达标;
  *   - `routes.chip.lazy` 必须是 true,不是 boolean;
  *   - `path: 123` 必须编译报错 → T 的约束要含 `path: string`。
- *   三条合起来唯一解:`<const T extends Record<string, { path: string }>>`。
+ *   三条要求可用下面的签名满足:`<const T extends Record<string, { path: string }>>`。
  *
  * 【老办法 as const vs 新办法 const 类型参数,各有什么代价?】
  * - 调用端 `as const`:每个调用点都要记得加,漏一处字面量就拓宽;
@@ -304,7 +304,7 @@ export function defineRoutes<T extends Record<string, { path: string }>>(routes:
 // T 推成 { home: { path: string; ... } },path: '/' 依旧拓宽成 string
 ```
 
-泛型的**约束**只管下限,不管推断时的拓宽 —— 字面量默认拓宽是 TS 的推断习惯,
+泛型约束要求实参类型可赋给约束类型，不是“下限”。在这个普通对象泛型的例子中，可变属性仍会拓宽，
 `const T` 才是改推断习惯的那个开关。
 另一个方向:只写 `const T` 不写约束也不行,`path: 123` 那条反例就抓不住了
 (const 下 123 推成字面量 `123`,没有 `path: string` 约束就没有报错理由)。
@@ -333,15 +333,15 @@ const routes = defineRoutes({ home: { path: '/' } } as const)
 
 - 没默认时"全事件处理器"必须写 `Handler<'chip:run' | 'chip:done' | 'chip:error'>`,键抄一遍;
 - 映射表是活的(会加事件),抄写处是死的 —— 默认参数 `= keyof EventMap` 让裸 `Handler` 永远等于当下的全键版;
-- 类比:`React.FC<Props = {}>`、`Record<K, V>` 家族里大量默认参数都是同一动机:**常用姿势零样板**。
+- 默认参数的作用是给常用调用提供省略写法；不能据此认为所有泛型工具都有默认参数，例如内置 `Record<K, T>` 的两个参数都必填。
 
 ### Part 2 第 5 题:satisfies / 注解 / as const 三者差异
 
 | | 结构检查 | 推断 |
 |---|---|---|
-| `satisfies T` | ✅ | 保留字面量 |
+| `satisfies T` | ✅ | 保留表达式推断结果；是否保留字面量取决于上下文与表达式 |
 | `: T` 注解 | ✅ | 拓宽到声明类型 |
-| `as const` | ❌(纯断言) | 全部字面量 + deep readonly |
+| `as const` | 不校验指定目标结构 | 保留适用字面量并将字面量属性／元组设为 readonly；不冻结运行时对象或递归改写外部引用的类型 |
 
 satisfies 的价值场景:**对象字面量既要过验收,又要以最精确的类型继续活下去**(配置对象、映射表、路由表)。
 
@@ -360,4 +360,4 @@ satisfies 的价值场景:**对象字面量既要过验收,又要以最精确的
 - [ ] `ChipRegistry` 的 JSDoc 说清 satisfies / 注解 / as const 三者差异
 - [ ] `defineRoutes` 签名从测试反推,字面量全部保留
 - [ ] 测试里 @ts-expect-error 反例保持生效(没删、也没因实现错误而失效)
-- [ ] `npx vitest run src/day06` 全绿、`pnpm typecheck` 本 day 零错误
+- [ ] `pnpm check:day 06` 通过（类型检查 + 运行时测试）
