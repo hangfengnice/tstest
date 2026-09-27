@@ -1,6 +1,6 @@
 # Day 11 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 11` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -107,7 +107,7 @@ export interface EventBus<E extends Record<string, unknown>> {
  *
  * 存储类型的死结(参数逆变):
  * 每个事件的 handler 参数类型各不相同,要找**一个**签名让所有
- * (payload: E[K]) => void 都能存进去,唯一的答案是 (payload: never) => void ——
+ * (payload: E[K]) => void 都能存进去,本实现采用 (payload: never) => void ——
  * never 是 bottom 类型,逆变规则下它是所有函数参数类型的"公共下界",
  * 所以任何 handler 都放得进去。
  * 代价:取出来调用时需要 never 实参,而 never 值不存在 ——
@@ -157,7 +157,7 @@ export function createEventBus<E extends Record<string, unknown>>(): EventBus<E>
       const payload = args[0]
 
       // TODO(reason): 参数逆变的死结绕不开这一处 ——
-      // StoredHandler((payload: never) => void)是唯一收得下所有 handler 的公共类型,
+      // StoredHandler((payload: never) => void)是本实现用于存储任意 handler 的公共类型,
       // 但调用它需要 never 实参(never 值不存在);事件名 ↔ payload 的对应只在类型层,
       // 运行时已丢失,无法重建。只能把 Set 断言回单参签名再调用
       // (参数放宽为 E[typeof event] | undefined,把"无 payload 事件"也诚实地纳入)。
@@ -222,7 +222,7 @@ createEventBus<IEvents>()
 // error TS2344: Type 'IEvents' does not satisfy the constraint 'Record<string, unknown>'
 ```
 
-为什么:type 别名的对象字面量类型有**隐式索引签名**(TS 认为它随时可以按 `Record<string, T>` 的方式安全访问),而 interface 是"开放的"—— 可被声明合并(declaration merging)追加任意成员,TS 不敢替它承诺索引安全,所以 interface 永远不满足 `Record<string, unknown>` 约束。
+为什么:type 别名的对象字面量类型有**隐式索引签名**(TS 认为它随时可以按 `Record<string, T>` 的方式安全访问),而 interface 是"开放的"—— 可被声明合并(declaration merging)追加任意成员,TS 不敢替它承诺索引安全,所以这里没有索引签名的 IEvents 不满足该约束。interface 显式声明 `[key: string]: unknown` 后可以满足，但 keyof 会拓宽为 string | number，不再适合本题的精确事件表。
 
 ```ts
 // ✅ 正确姿势
@@ -342,17 +342,20 @@ emit<K extends keyof E>(event: K, ...args: ...): void
 
 条件类型 `E[K] extends undefined ? [] : [payload: E[K]]` 检查的是 **E[K] 这个类型本身是否是 undefined(的子类型)**。`E['modal:close']` 就是 `undefined`,`undefined extends undefined` 成立 → true 分支 `[]`。而有 payload 的事件(对象类型、string)不是 undefined 的子类型 → false 分支。注意一个边界:如果某事件的 payload 是 `string | undefined` 这种**含 undefined 的联合**,`extends undefined` 为 false(联合不是 undefined 的子类型),走 `[payload]` 分支,payload 仍必传(只是值可以是 undefined)—— 条件类型不拆联合看"是否含有",只看"整体是否兼容"。
 
-**Q2(JSDoc 必答题):事件表为什么必须用 type 不能用 interface?**
+**Q2(JSDoc 必答题):本题无索引签名的 interface 为什么不满足约束?**
 
 见"常见错误"第 3 条:type 别名的对象类型有隐式索引签名,满足 `E extends Record<string, unknown>` 约束;interface 可被声明合并、是开放结构,TS 不给它隐式索引签名,所以不满足约束(TS2344)。
 
 **Q3(Part 2 死结):为什么"收得下所有 handler"和"可被安全调用"不可兼得?**
 
-设存储类型为 `(payload: X) => void`。存入 `(payload: E[K]) => void` 要求逆变:`X` 必须是 `E[K]` 的子类型(**对每一个** K 同时成立)→ 唯一解 `X = never`。而调用它需要传一个 never 类型的值 → never 值不存在 → 调不了。反过来把 X 定成某个具体事件的 payload,其他事件的 handler 就存不进。这就是"异构集合 + 逆变参数"的根本矛盾,mitt 源码(内部 any)、Vue 的 emits 实现(内部 as)都只能在调用点做一次类型断言跨越它 —— 我们用 `(payload: never) => void` 存 + 一次 as 取,把不可控面压缩到最小,并且让"存"这一侧依然全程有类型检查。
+本实现把不同事件的处理器放入同一种容器类型，键与载荷之间的关联在存储处被擦除。
+`(payload: never) => void` 可接收这些处理器，却不能直接用真实载荷调用；因此在取出时根据事件键恢复签名。
+这是当前存储方案的权衡，不是所有异构容器都只能使用一种类型的证明。
+如果保留逐键映射及其关联，或把类型擦除移到写入处，设计也会不同。
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错、`pnpm test` 全绿(本 day 20 个用例)
+- [ ] `pnpm check:day 11` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`;`as` 全文件仅一次(emit 内部),带 `// TODO(reason)` 说明逆变死结
 - [ ] `NotificationEvents` 用 type 定义;JSDoc 解释了 interface 为什么不行(隐式索引签名 / 声明合并)
 - [ ] 未知事件名 on/emit 都编译报错(K extends keyof E)
