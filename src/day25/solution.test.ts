@@ -1,4 +1,5 @@
 import { describe, it, expect, expectTypeOf } from 'vitest'
+import { z } from 'zod'
 import {
   conversationSchema,
   pagedConversationSchema,
@@ -72,6 +73,15 @@ describe('Day 25 — Part 1 第一个 schema', () => {
 // =============================================================
 
 describe('Day 25 — Part 2 safeParseApi', () => {
+  it('自定义 transform 抛错也转换成失败结果', () => {
+    const schema = z.string().transform(() => { throw new Error('unexpected') })
+    expect(safeParseApi(schema, 'input')).toEqual({ ok: false, errors: ['校验过程异常'] })
+  })
+
+  it('自定义 refinement 抛错也转换成失败结果', () => {
+    const schema = z.string().refine(() => { throw new Error('unexpected') })
+    expect(safeParseApi(schema, 'input')).toEqual({ ok: false, errors: ['校验过程异常'] })
+  })
   it('PagedConversations 嵌套结构推导正确', () => {
     expectTypeOf<PagedConversations>().toEqualTypeOf<{
       items: Conversation[]

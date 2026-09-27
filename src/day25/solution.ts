@@ -75,9 +75,10 @@ export type ParseResult<T> =
  * 安全解析任意来源数据 —— 永不抛异常,任何输入都返回 ParseResult。
  *
  * 实现要求:
- *   1. 用 schema.safeParse(raw)(不要用 parse + try/catch)
+ *   1. 用 schema.safeParse(raw)，外层 try/catch 捕获自定义校验逻辑抛出的异常
  *   2. 成功 → { ok: true, data }
  *   3. 失败 → { ok: false, errors },每条格式 `${path.join('.')}: ${message}`
+ *   4. 校验过程异常 → { ok: false, errors: ['校验过程异常'] }
  *
  * @example
  *   safeParseApi(conversationSchema, JSON.parse('{"id":123}'))

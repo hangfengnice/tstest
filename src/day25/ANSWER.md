@@ -1,11 +1,11 @@
 # Day 25 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 25` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
 
-已通过本 day 全部验收测试(15/15,vitest typecheck 模式双跑 30/30)+ `pnpm typecheck` 该目录零错误。
+修订后使用 `pnpm check:textbook` 验证参考实现；新增自定义校验逻辑抛错的回归用例。
 
 ```ts
 import { z } from 'zod'
@@ -43,15 +43,20 @@ export function safeParseApi<T>(
   schema: z.ZodType<T>,
   raw: unknown,
 ): ParseResult<T> {
-  const result = schema.safeParse(raw)
-  if (result.success) {
-    return { ok: true, data: result.data }
-  }
-  return {
-    ok: false,
-    errors: result.error.issues.map(
-      (issue) => `${issue.path.join('.')}: ${issue.message}`,
-    ),
+  try {
+    const result = schema.safeParse(raw)
+    if (result.success) {
+      return { ok: true, data: result.data }
+    }
+    return {
+      ok: false,
+      errors: result.error.issues.map(
+        (issue) => `${issue.path.join('.')}: ${issue.message}`,
+      ),
+    }
+  } catch {
+    // safeParse 处理普通校验失败；用户校验逻辑抛出的异常另行兜底。
+    return { ok: false, errors: ['校验过程异常'] }
   }
 }
 
@@ -88,15 +93,10 @@ export type AppNotification = z.infer<typeof notificationSchema>
    }
 ```
 
-现象:能编译甚至能跑,但处处别扭 —— ① catch 到的 `e` 是 **unknown**
-(本仓库开着 useUnknownInCatchVariables),要再收窄一次才能读 message;
-② 异常是**跳转型**控制流,类型系统看不见,"哪些路径会失败"全靠人肉记;
-③ 错误信息是一整坨字符串,拿不到结构化的 path/message(想拼
-`path: message` 得先 `e instanceof ZodError` 判断再转型)。
-safeParse 把失败变成**返回值**:`{ success: false, error }` 是普通对象,
-error.issues 结构化,窄化靠 if 分支,编译器检查你处理了失败分支。
-预期内的业务分支用返回值建模(try/catch 留给真正的意外),
-这是 Day 2 Result 模式的完整理由。
+这段实现能捕获异常，但把所有错误转成 String(e)，不符合题目要求的逐字段错误格式。
+parse + try/catch 也可以正确实现：捕获后识别 ZodError，再读取 issues；它不是类型系统不支持的写法。
+本题选择 safeParse 来直接处理普通校验结果，并另用 try/catch 捕获用户 transform/refinement
+抛出的意外异常。两层处理各自有明确职责。
 
 ### 2. 忘了窄化就读 result.data
 
@@ -192,28 +192,20 @@ zod 存在的全部意义就是消灭它:类型必须 `z.infer<typeof schema>` �
 零阻力(参数本来就是 unknown),而 any 会一路关闭沿途所有类型检查。
 校验函数的 raw 是 unknown,和"调用方在入口收窄"是同一原则的两端。
 
-### 9. z.infer 的 typeof 用在函数参数上(概念坑)
+### 9. 把 schema 参数注解得过宽，丢失输出类型
 
-```ts
-❌ function render(schema: z.ZodType) {
-     type Data = z.infer<typeof schema>   // = unknown,不是具体形状!
-   }
-```
-
-现象:不报错但推导出 unknown —— `z.infer<typeof s>` 要求 s 是**具体的
-const**(typeof 读的是它的精确类型);函数参数的类型是宽泛的 ZodType,
-infer 拿不到形状。所以 safeParseApi 用**泛型接线**:
-`schema: z.ZodType<T>` 让 T 在调用点从具体 schema 推导,返回
-ParseResult<T> —— 这是对"z.infer 需要 const"的类型层解决方案,
-也是本 day 签名设计的核心一课。
+`z.infer<typeof schema>` 不要求 schema 必须是 const，也允许函数参数。
+关键是静态类型是否保留具体输出信息：`schema: z.ZodString` 可推导为 string，
+`schema: z.ZodType` 过宽时则只能得到 unknown。使用 `z.ZodType<T>` 保留 T，
+再把它传到 `ParseResult<T>`；或者通过泛型 S 保留整个 schema 类型。
 
 ## 三、思考题参考答案
 
 ### 为什么测试里用 safeParse 而不是 parse + try/catch?
 
-见常见错误 1 的完整论证。一句话版:**预期内的失败是业务分支,不是异常** ——
-返回值让失败路径可被类型系统检查、错误信息可结构化、调用处可窄化;
-try/catch 三样都做不到。zod 把两个 API 都给你,选哪个是设计态度问题。
+safeParse 直接给出可辨识联合，便于在正常分支里读取结构化 issues。
+parse + try/catch 同样可以通过错误收窄实现；本题选择 safeParse 是接口设计选择，
+不是另一种写法无法提供结构化结果。safeParse 也不能替代对自定义校验逻辑异常的兜底。
 
 ### `typeof` 在 `z.infer<typeof conversationSchema>` 里干了什么?
 
@@ -233,7 +225,7 @@ z.infer 把它翻回同一形状的类型联合。运行时(校验分流)和类�
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全过
+- [ ] `pnpm check:day 25` 通过（类型检查 + 运行时测试）
 - [ ] `Conversation` / `PagedConversations` / `AppNotification` 全部来自 z.infer,
       没有手写重复接口
 - [ ] `safeParseApi` 永不抛异常:非对象输入也返回 `{ ok: false, ... }`
