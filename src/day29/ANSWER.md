@@ -1,6 +1,6 @@
 # Day 29 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 29` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -258,7 +258,7 @@ export function addTodo(todos: readonly Todo[], input: CreateTodoInput): Todo[] 
 ```
 
 现象:readonly 入参下 push 编译不过(于是有人 `as` 一下硬拗);"不改入参数组"测试红。
-为什么错:坏代码④的病根不是 push 这个 API,是**"改调用方的数据 + 返回同一个引用"这个契约**。测试断言 `after !== before` 且 `before` 长度不变 —— 纯函数是唯一同时满足两者的写法:
+为什么错:坏代码④的病根不是 push 这个 API,是**"改调用方的数据 + 返回同一个引用"这个契约**。测试断言 `after !== before` 且 `before` 长度不变 —— 复制数组后新增元素可满足这两项要求；仅凭这两个断言还不能证明函数完全无副作用：
 
 ```ts
 // ✅
@@ -297,7 +297,7 @@ return `${prefix} ${todo.title}`
 ```
 
 现象:**测试全绿** —— 行为没错。但验收清单明确要求 never 穷尽检查。
-为什么错:这段代码和坏代码⑥唯一的区别是把 any 换成了 string —— "新增状态时静默产出 undefined 前缀"的漏洞原样保留。switch + default 分支 `const _exhaustive: never = todo` 之后,未来加 `'archived'` 状态,这行立刻编译报错。**测试验证"现在对不对",穷尽检查保证"将来坏不了"** —— 两种保障不可互换。
+为什么错:这段代码和坏代码⑥唯一的区别是把 any 换成了 string —— "新增状态时静默产出 undefined 前缀"的漏洞原样保留。switch + default 分支 `const _exhaustive: never = todo` 之后,未来加 `'archived'` 状态,这行立刻编译报错。**测试检查已覆盖的行为，穷尽检查提醒未处理的新联合成员** —— 两种保障不可互换。
 
 ### 5. findTodo 用非空断言硬拗
 
@@ -360,7 +360,7 @@ tags: string[]   // 忘了可选
 
 ## 四、验收自查清单
 
-- [ ] `pnpm test` 中 day29 全绿;`pnpm typecheck` 中 day29 错误清零
+- [ ] `pnpm check:day 29` 通过（类型检查 + 运行时测试）
 - [ ] 行为约定:render 输出 `'[ ] 标题'` / `'[x] 标题'` 不变;find 命中/未命中语义不变;序列化仍是 JSON 字符串
 - [ ] 修复项:done→active 后 `completedAt` 键消失;addTodo 不改入参、返回新数组、priority 缺省 'medium'、tags 缺省 []
 - [ ] 源码扫描零命中:宽化断言四种形态 + 全局存储调用
