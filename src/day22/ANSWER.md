@@ -1,6 +1,6 @@
 # Day 22 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 22` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -108,7 +108,7 @@ Head 是第一段,保持原样。递归版同理 —— 只有 Tail 经过 Capit
 一旦后面的 `:` 能对上就立刻停止,所以锚定的是**第一个**冒号;infer P 把剩余
 部分**整体**吃掉。所以 '/users/:uid/posts/:pid' → 'uid/posts/:pid'。
 要逐个提取参数名,得按 '/' 递归拆段过滤 —— Day 23 递归类型之后才打得动。
-另两个变体错误:`${string}:${string}`(不用 infer)结果永远是宽 boolean;
+不用 infer 的 `` T extends `${string}:${string}` ? true : false `` 可以判断是否匹配：对具体字面量可得到 true 或 false，但不能提取参数名；
 只有 `` `:${infer P}` ``(漏掉前缀通配)只能匹配以 ':' 开头的路径。
 
 ```ts
@@ -222,7 +222,7 @@ handler prop 的形状是**(payload: 载荷) => void**,值列要造一个函数�
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全绿
+- [ ] `pnpm check:day 22` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`、零 `as`(replace 回调参数有显式类型标注)
 - [ ] 所有 export 有 JSDoc + `@example`
 - [ ] `ExtractRouteParam` 的"先猜后验"结论(最短匹配、整段尾巴)写在 JSDoc
