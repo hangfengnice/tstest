@@ -1,6 +1,6 @@
 # Day 7 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 07` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 以下参考实现已通过本 day 全部验收测试(`npx vitest run src/day07` 34/34 全绿,`pnpm typecheck` 本 day 零错误)。
@@ -303,8 +303,8 @@ description 用 `''` 表达"清空"。注意 patch 类型是 EditPatch(全可选
 
 - 严格模式下 `description?: string` 的读取类型是 `string | undefined`;
 - `-?` 之后是纯 `string`(undefined 一并被剥掉,实测可赋给 `string` 变量);
-- 这是 TS 的明文规定,不是实现副作用:Required 的语义是"必填且必有值";
-- 推论:`Required<Partial<T>>` 能精确回到"全必填"而不是"全必填但可能 undefined"。
+- 当前 exactOptionalPropertyTypes 下，原声明若是 `description?: string | undefined`，`-?` 后仍保留显式 undefined；
+- Required 的保证是属性必填，值是否允许 undefined 由原声明和配置决定，不能无条件概括为“必有非 undefined 值”。
 
 ### Part 2 第 6 题:直接映射 vs 组合 Pick 的实验结论
 
@@ -330,4 +330,4 @@ description 用 `''` 表达"清空"。注意 patch 类型是 EditPatch(全可选
 - [ ] `MyOmit` 的 JSDoc 记下了"直接映射丢 ?、组合 Pick 才与内置对等"的实验结论
 - [ ] `toEditForm` 不含 id / createdAt,description 为空时**键不存在**
 - [ ] 测试里 @ts-expect-error 反例保持生效
-- [ ] `npx vitest run src/day07` 全绿、`pnpm typecheck` 本 day 零错误
+- [ ] `pnpm check:day 07` 通过（类型检查 + 运行时测试）
