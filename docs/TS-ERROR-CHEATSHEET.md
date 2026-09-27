@@ -50,7 +50,7 @@
 - **自查顺序**:
   1. hover 报错行的变量,看它**当前**的类型是联合的哪个分支(还是整个联合)
   2. 字段在别的分支 → 先收窄:`switch (x.status)` / `if (x.kind === '...')` / `'key' in x`
-  3. 判别符是宽 `string`(不是字面量联合)→ 收窄永远不生效,改类型定义(Day 30 Q2)
+  3. 判别符包含宽 `string` 时，分支可能重叠，无法像互斥字面量那样唯一确定成员；检查具体联合结构(Day 30 Q2)
 
 ### TS2344 — Type 'X' does not satisfy the constraint 'Y'(不满足泛型约束)
 
@@ -254,11 +254,12 @@ const b = 'debug'        // 'debug'
 function f() { return 'syntax' }   // () => string
 function g(): 'syntax' { return 'syntax' }  // 返回注解提供上下文,保鲜
 
-// 通道 3:无约束泛型拓宽,带约束泛型保鲜(Day 16 getConfig 的考点)
-declare function getByKey<T>(k: string, fb: T): T
-getByKey('theme', 'auto')    // string —— T 无约束,推断时字面量拓宽
-declare function getConfig<T extends string | number | boolean>(k: string, fb: T): T
-getConfig('theme', 'auto')   // 'auto' —— 约束保留字面量
+// 泛型是否拓宽取决于签名、推断位置和实参，不能只看有没有约束
+function identity<T>(value: T): T { return value }
+const exact = identity('auto') // 'auto'：直接返回 T 可保留字面量
+let input = 'auto'             // string：这里已在变量声明处拓宽
+const wide = identity(input)   // string
+
 ```
 
 - **修法**:返回注解一次给全函数上下文(还能当场抓拼写错误)/ `as const` / `satisfies` / const 类型参数。
@@ -266,7 +267,7 @@ getConfig('theme', 'auto')   // 'auto' —— 约束保留字面量
 ### 主题 2:判别联合与收窄
 
 - **现象**:`if (n.type === 'email')` 后还是访问不了 `n.subject`;switch 里 default 拿不到 never;两分支字段互相访问报 2339。
-- **常见原因**:判别符不是**字面量类型**而是 `string`(收窄永不生效,Day 30 Q2);字段堆在一个大对象的可选属性里(Day 2 V1 建模、Day 29 坏味道②)。
+- **常见原因**:判别符包含宽 `string`，分支重叠时无法唯一确定成员(Day 30 Q2);字段堆在一个大对象的可选属性里(Day 2 V1 建模、Day 29 坏味道②)。
 - **最小验证**:
 
 ```ts
@@ -355,8 +356,8 @@ const out = mapResult(r, (d) => d.length)
 
 ### 主题 6:可选属性与 undefined 的三态(exactOptionalPropertyTypes)
 
-- **现象**:`{ detail: undefined }` 报 2375;展开对象后多出 `tags: undefined` 键;`toEditForm` 里的可选字段怎么写都红。
-- **常见原因**:把"`键可以不存在`"和"`值可以是 undefined`"混为一谈;`...input` 会把值为 undefined 的键**写进对象**(Day 28 createTodo 坑)。
+- **现象**:`{ detail: undefined }` 报 2375;显式重建可选属性后多出 `tags: undefined` 键;`toEditForm` 里的可选字段怎么写都红。
+- **常见原因**:把"`键可以不存在`"和"`值可以是 undefined`"混为一谈;`...input` 会保留输入中已经存在且值为 undefined 的键，但不会创建原本缺失的键。
 - **最小验证**:
 
 ```ts
@@ -364,7 +365,8 @@ type Address = { city: string; detail?: string }
 const a1: Address = { city: '上海', detail: undefined }  // 2375,拒收
 const a2: Address = { city: '上海' }                     // OK,键不存在
 const input = { city: '上海', detail: undefined as string | undefined }
-const a3 = { ...input }   // 运行时 a3.detail 键存在且是 undefined —— 展开不帮你删键
+const a3 = { ...input }   // detail 已存在，展开保留它
+const a4 = { ...a2 }      // detail 原本缺失，展开不会新增它
 
 // "不传就没有键"的正确构造(Day 28):
 function make(input: { detail?: string }) {
@@ -397,15 +399,16 @@ type MyPick<T, K extends keyof T> = { [P in K]: T[P] }
 
 - **现象**:想知道配置对象"检查归检查、字面量保鲜"该用哪个;`as const` 满足不了结构检查。
 - **三者一句话**(Day 6 核心概念题):
-  - 注解 `: T` —— 检查 + **拓宽**(字面量按 T 磨圆)
-  - `as const` —— 保鲜 + **不检查**(结构错了不报)
-  - `satisfies T` —— 检查 + **保鲜**(结构错报错,字面量保留)
+  - 注解 `: T` —— 检查兼容性，变量采用 T；是否更宽取决于 T
+  - `as const` —— 对适用的字面量表达式保留字面量，并添加 readonly；本身不校验某个目标结构
+  - `satisfies T` —— 校验兼容性，保留表达式推断结果；T 也提供上下文，不保证每个属性都保留字面量
 - **最小验证**:
 
 ```ts
 type ChipRegistry = { retries: number; logLevel: 'debug' | 'info' | 'error' }
 const a = { retries: 3, logLevel: 'debug' } satisfies ChipRegistry
-a.logLevel  // 'debug' —— 字面量还在
+a.logLevel  // 'debug' —— 此处的上下文联合保留该字面量
+a.retries   // number —— 并非所有属性都保留字面量
 const b: ChipRegistry = { retries: 3, logLevel: 'debug' }
 b.logLevel  // 'debug' | 'info' | 'error' —— 被注解拓宽
 const c = { retries: 'three' } satisfies ChipRegistry  // 报错!结构检查仍在
@@ -438,7 +441,7 @@ typeof noConst[number]       // string —— 字面量全丢
 ### 主题 10:索引访问与键约束(T[K] / keyof)
 
 - **现象**:`T[K]` 报 2536;`keyof` 结果和预期不符;`Omit<联合>` 结果只剩公共字段。
-- **常见原因**:K 没绑定到 keyof T;**keyof 联合 = 各成员键的交集**(Day 1/2 坑,Day 30 Q14);keyof 交叉 = 并(Day 30 Q10)。
+- **常见原因**:K 没绑定到 keyof T;**keyof 联合 = 各成员键的交集**(Day 1/2 坑,Day 30 Q14);普通可兼容对象交叉可取两边键，但冲突字面量属性可能使整个交叉退化为 never（见 Day 30 Q10），需先检查交叉结果。
 - **最小验证**:
 
 ```ts
@@ -495,17 +498,17 @@ type Split<S> = S extends `${infer Head}_${infer Tail}` ? `${Head}${Capitalize<T
 type D = Split<'user_name'>                  // 'userName'(最短匹配,第一个下划线处拆)
 ```
 
-- **自查**:模式对不上走了 else 分支 → hover 检查输入的 readonly/元组形状和模式是否一致;`[0]` 索引访问拿到 `| undefined`(noUncheckedIndexedAccess)→ 改用模式匹配,不是索引访问(Day 19 FirstParamOf 的陷阱)。
+- **自查**:模式对不上走了 else 分支 → hover 检查输入的 readonly/元组形状和模式是否一致;元组首项索引与首参模式在无参函数上结果不同（undefined 与 unknown），按题目语义选择，不要归因于 noUncheckedIndexedAccess。
 
 ### 主题 13:递归类型(DeepPartial / DeepReadonly / Path)
 
 - **现象**:递归类型不终止或结果不对;`DeepReadonly` 后数组还能 push;DeepPartial 把原始值也搞坏了。
-- **常见原因**:没有按"数组 / 对象 / 原始值"三分支处理(Day 23 骨架);数组被当对象映射(方法还在,push 可用);`children?: T[]` 的可选分支没处理 undefined。
+- **常见原因**:没有按"数组 / 对象 / 原始值"三分支处理(Day 23 骨架);把元素只读误当成数组只读，或可选同态映射给数组元素引入 undefined;`children?: T[]` 的可选分支没处理 undefined。
 - **最小验证**:
 
 ```ts
 type DeepReadonly<T> = T extends (infer E)[] ? readonly E[] : T extends object ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T
-// 数组分支必须产出 readonly E[](不是递归映射数组对象——那样 push 依然可用,Day 23 @ts-expect-error 会挂)
+// 数组需得到只读结果；显式 readonly E[] 与同态 readonly 递归映射都可以
 type DeepPartial<T> = T extends (infer E)[] ? DeepPartial<E>[] : T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T
 // 注意:DeepReadonly 的数组是 readonly E[],DeepPartial 的是可变数组 —— 语义本该不同
 // 自引用合法:type Node = { children?: Node[] } —— 经过对象/数组包装就不是无限展开
@@ -528,7 +531,7 @@ declare function callFn<T extends (...args: never[]) => unknown>(f: T): T
 callFn((q: string, page: number) => 1)  // OK:never[] 万能收下
 ```
 
-- **自查**:handler/回调参数不匹配 → 检查要求方向(参数只能要求**更少**,返回只能给**更多**);异构存储统一调用 → 类型系统无解,一处 as + `TODO(reason)` 注释(Day 11 的死结是结构性的,不是你菜)。
+- **自查**:handler/回调参数不匹配 → 检查要求方向(参数只能要求**更少**,返回只能给**更多**);异构存储统一调用 → 先尝试保留键与载荷关联；当前存储设计若丢失关联，在题目允许的边界集中断言并说明运行时依据。
 
 ### 主题 15:unknown vs any(守卫是一切的门)
 
@@ -547,7 +550,7 @@ function isChatDraft(v: unknown): v is ChatDraft { /* 逐字段诚实 */ }
 // is 是"声明即真相"——TS 不检查守卫实现撒没撒谎,所以必须逐字段写诚实
 ```
 
-- **自查**:想写 as → 先问"数据从哪来"(外部 = 守卫);守卫里漏字段 → 回去补,守卫是唯一"人写类型、编译器照单全收"的位置。
+- **自查**:想写 as → 先问"数据从哪来"(外部 = 守卫);守卫里漏字段 → 回去补,自定义守卫的谓词也需要人工保证真实性，编译器不会自动证明其检查逻辑完整。
 
 ### 主题 16:函数重载(参数组合 → 返回类型)
 
@@ -584,7 +587,7 @@ type D = '/users/:uid/posts/:pid' extends `${string}:${infer P}` ? P : never
 ### 主题 18:interface vs type / 镜像映射内联
 
 - **现象**:interface 传不进 `E extends Record<string, unknown>` 约束(Day 11 反例);反向推导(reverse mapped type)失效,泛型推成宽类型(Day 12)。
-- **常见原因**:interface **没有隐式索引签名**(不可渐进索引),type 别名有;镜像映射 `{ [K in keyof G]: (state: S) => G[K] }` 必须**直接内联在参数类型里**,先定义成接口再引用会隔断推导(Day 12 明确提示)。
+- **常见原因**:interface **没有隐式索引签名**(不可渐进索引),type 别名有;镜像映射 `{ [K in keyof G]: (state: S) => G[K] }` 可以内联，也可通过别名／options 接口引用；检查具体上下文，不能把别名当作推断失败的必然原因。
 - **最小验证**:
 
 ```ts
@@ -592,34 +595,32 @@ interface IEvents { ping: number }
 type TEvents = { ping: number }
 declare function createBus<E extends Record<string, unknown>>(): void
 createBus<TEvents>()   // OK:type 有隐式索引签名
-createBus<IEvents>()   // 2344:interface 不满足约束 —— 事件表必须用 type
+createBus<IEvents>()   // 2344:此处无索引签名的 interface 不满足约束
 
-// 镜像映射(Day 12 defineStore 的地基):内联才反得动
+// 镜像映射(Day 12 defineStore 的地基):内联便于观察，也可通过别名引用
 declare function defineStore<S, G>(opts: {
   state: () => S
   getters: { [K in keyof G]: (state: S) => G[K] }  // 从实参反推 G
 }): Store<S, G>
 ```
 
-- **自查**:约束报 2344 且实参是 interface → 换 type;镜像映射推不动 → 检查是否内联在参数位。
+- **自查**:约束报 2344 且实参是 interface → 换 type;镜像映射推不动 → 检查映射形状与上下文是否保留待推导信息。
 
-### 主题 19:noUncheckedIndexedAccess(索引访问永远带 undefined)
+### 主题 19:noUncheckedIndexedAccess（可能缺失的下标访问）
 
-- **现象**:`arr[0].x` 报 2532;查表 `TRANSITIONS[from]` 是 `T | undefined`;`find` 返回带 undefined。
-- **常见原因**:开了这个开关,一切**索引访问**都自动加 `| undefined`——它假设键可能越界。
-- **最小验证**:
+- **作用**：对普通数组下标、索引签名中未明确声明的键等可能缺失的读取加 `undefined`。
+- **边界**：已知元组位置、有限映射中的必填键不自动增加 undefined；类型级 `T[K]` 也不能与运行时下标读取混为一谈。`find` 的返回值本来就含 undefined，与此开关无关。
+- **最小验证**：
 
 ```ts
 const arr: string[] = ['a']
-arr[0].toUpperCase()   // 2532
-if (arr[0] !== undefined) arr[0].toUpperCase()  // OK
-
-const table: { [K in 'draft' | 'sent']: string[] } = { draft: ['sending'], sent: [] }
-const next = table['draft']  // string[] | undefined
-// Day 10 的"窄存储宽读取":存窄(精确键),读时处理 undefined
+const item = arr[0] // string | undefined
+const tuple: [string] = ['a']
+const first = tuple[0] // string
+const table: Record<'draft' | 'sent', string[]> = { draft: ['sending'], sent: [] }
+const next = table['draft'] // string[]
+type Element = string[][number] // string（类型级索引）
 ```
-
-- **自查**:所有索引访问先想"可能 undefined 吗";守卫里遍历数组元素也要一并挡掉 undefined(Day 28 isTodoArray 提示)。
 
 ---
 
@@ -676,8 +677,8 @@ type Actual   = { ok: boolean; data: Paged<Conversation> | undefined }
 
 - **内置工具类型的源码**就在本地:`node_modules/typescript/lib/lib.es5.d.ts`(Partial/ReturnType/Record 的定义都在里面,读它们是最快的学习方式)。
 - 本仓库 `tsconfig.json` 的严格开关清单(手册开头)——判断"这个错误在我这会不会出现"。
-- `pnpm typecheck` 全量红屏时,先按文件分组,从**被依赖最多**的文件修起(solution.ts 通常不依赖别人,先修它)。
-- 命令行单文件检查:`pnpm exec tsc --noEmit src/dayXX/solution.ts`(不带 tsconfig 的 include 过滤,快速看单文件)。
+- 当天练习用 `pnpm check:day XX`，避免其他未完成题目的报错干扰；先定位当天源码错误，再看下游类型断言。
+- 不用 `tsc --noEmit src/dayXX/solution.ts` 代替验收：直接指定文件不会沿用项目 tsconfig。`pnpm check:day XX` 保留严格配置，并检查当天测试与声明文件。
 
 ---
 
