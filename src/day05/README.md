@@ -1,5 +1,36 @@
 # Day 5 — 泛型函数 + extends 约束(K extends keyof T)
 
+## 重学导读
+
+**前置知识**：Day 2 泛型；Day 4 的 Record 可先按“键到值的映射”理解。
+
+**今天要学会**：把对象、键和值的关系写进函数签名，让返回类型随键变化。
+
+### 先理解三个概念
+
+| 概念 | 怎么理解 |
+|---|---|
+| keyof T | 得到 T 的可用属性名联合。例如表格行有 id 和 title，keyof 便描述允许选择的列名。 |
+| K extends keyof T | K 必须是 T 的合法键；T[K] 再取这个键对应的值类型。约束与索引访问负责不同工作。 |
+| 数组与不可变更新 | 普通数组可能为空，items[0] 要考虑 undefined；readonly 入参限制函数通过该引用修改数据，不会自动冻结对象。 |
+
+### 动手顺序
+
+先做 firstOf/getValue → 再做 pick/updateAt → 最后读 pluck 测试推签名。动态构造 pick 时记录断言依据，别把整题限制当成全课程规则。
+
+先读 [验收测试](./solution.test.ts)，再编辑 [练习实现](./solution.ts)。已有实现时先按[重学方法](../../docs/LEARNING-ORDER.md)保存历史，再独立重写；不要用旧代码的通过结果代替本轮练习。
+
+### 学完自测
+
+- **解释**：同一个 getValue 调用，为什么换键后返回值类型也变？修改后的对象与原对象应是什么引用关系？
+- **迁移**：给订单表格设计读取 amount 和 paid 的调用，预测两次结果类型。
+- **验收**：在项目根目录运行 `pnpm check:day 05`，同时看类型检查与运行时测试。
+- **记录**：按[每日自评模板](../../docs/DAILY-REVIEW-TEMPLATE.md)记录本次结果；参考答案在整题通过后再看。
+
+下面保留完整题目与验收要求。一天可拆成多次学习，导读中的先后顺序不减少整题要求。
+
+---
+
 ## 业务场景
 
 chipRunner 的会话列表页。你在 Vue 里天天写 `obj[key]`、`list.map(o => o[key])`、
@@ -58,7 +89,7 @@ Day 2 你已经写过 `mapResult<T, U, E>`(泛型参数是"整个类型")。今�
 
 ## 验收点
 
-跑 `pnpm typecheck` 和 `pnpm test` 必须全部通过。
+运行 `pnpm check:day 05`，类型检查和运行时测试必须全部通过。
 
 - [ ] 零 `any`;唯一的 `as` 只允许出现在 `pick` 内部,且带注释说明原因
 - [ ] 所有 `export` 有 JSDoc + `@example`
@@ -74,3 +105,7 @@ Day 2 你已经写过 `mapResult<T, U, E>`(泛型参数是"整个类型")。今�
 
 **建议节奏**:Part 1 二十分钟 → Part 2 三十五分钟 → Part 3 二十五分钟。
 卡超过十分钟再来问,要提示不要答案。
+
+---
+
+[上一题：Day 4](../day04/README.md) · [学习目录](../../docs/LEARNING-ORDER.md) · [下一题：Day 6](../day06/README.md)

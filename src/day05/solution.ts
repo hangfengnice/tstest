@@ -70,7 +70,7 @@ export function getValue<T, K extends keyof T>(source: T, key: K): T[K] {
 /**
  * 挑选若干字段组成新对象(列表页投影)。
  *
- * 本函数含三十天唯一一次合法 as,担保与履约:
+ * 本函数含本题允许的一次 as,担保与履约:
  * 初始值 {} 无法被证明满足 Pick<T, K> —— 泛型 T/K 未解析时,
  * TS 放弃证明"动态构造过程"的结果(const r: Pick<T,K> = {} 直接红)。
  * as 担保"空对象经循环逐键塞值后必然满足 Pick<T, K>",由 reduce 循环兑现。
