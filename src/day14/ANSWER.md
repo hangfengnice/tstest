@@ -1,13 +1,11 @@
 # Day 14 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 14` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
-> ⚠️ 关于 as 数量的说明:验收清单写"除事件存储擦除点外零 as"。实测 emitter 的擦除点
-> (on 内一次)之外,**inject 内部从 unknown 恢复 T 也必须一次 as** —— 类型不携带运行时信息,
-> 异构容器(一个 Map 装所有类型的值)取出时无从验证,这是数学边界不是写法问题。
-> README 思考题自己也点了:"Vue 源码里 inject 的实现内部有两处 as。为什么全世界最讲类型安全的
-> 框架也逃不掉?" —— 本实现共两处 as(emitter 存储一次、inject 取值一次),各带 TODO 注释。
+> 断言规则已与题面统一：事件存储一次、inject 从 unknown 恢复 T 一次，各带 TODO(reason)。
+> 这两个位置对应当前容器设计的类型信息恢复边界；应解释同一 key 的写入与读取为何关联，
+> 而不是把一次实现的限制表述为所有设计都不可能避免断言。
 
 ## 一、参考实现
 
@@ -28,14 +26,14 @@
 // =============================================================
 
 /**
- * 注入 key —— Vue 3 源码同款模式:接口继承 `Symbol`,泛型 T 只存在于类型层。
+ * 注入 key —— 教学用的 Symbol key 模式:接口继承 `Symbol`,泛型 T 只存在于类型层。
  * 这样 `InjectionKey<ThemeContext>` 就是一个"携带"了值类型的 key:
  * provide/inject 的泛型推断全靠它的**类型标注**完成。
  *
- * 和 Vue 原版的唯一差别:Vue 原版是 `interface InjectionKey<T> extends Symbol {}`
- * (T 不出现在任何成员里),但本仓库开了 noUnusedLocals,未使用的类型参数会报 TS6133,
- * 所以加了一个**幽灵可选属性**让 T 被"读到" —— 它运行时永远是 undefined,
- * 类型层行为与 Vue 原版完全一致(还顺带让不同 T 的 key 结构上也互不相容,见思考题 1)。
+ * 本练习用可选幽灵属性携带 T，同时避免未使用类型参数的报错。
+ * 通过 Symbol() 创建 key 时不创建该字段；接口声明本身不生成运行时属性。
+ * 不同载荷是否兼容取决于结构，不能将“泛型参数名字不同”当成名义类型隔离。
+ * 这是教学用的简化模型，不声称与 Vue 的具体源码版本完全一致。
  *
  * @example
  *   const THEME_KEY: InjectionKey<ThemeContext> = Symbol('theme')
@@ -224,11 +222,11 @@ export function inject<T>(
 ): T | undefined {
   const result = lookupKey(key)
   if (result.found) {
-    // TODO(reason): 类型擦除点(与 Vue 源码 inject 内部的两处 as 同处境)——
+    // TODO(reason): 当前容器设计的类型信息恢复点——
     // 上下文栈是异构容器(一个 Map 要装所有类型的值),值类型只能声明为 unknown;
     // "这个 key 对应这个 T"的对应关系只存在于 InjectionKey 的类型标注里,
-    // 运行时无从验证。类型系统无法从 unknown 恢复 T(这不是能力不足,
-    // 是"类型不携带运行时信息"的数学边界),只能断言。
+    // 当前接口未接收运行时校验器，编译器无法从 unknown 自动恢复 T，
+    // 因此在这个边界集中断言；改变接口以传入校验器是另一种设计。
     // 安全性由 provide<T>/inject<T> 的对称签名保证:存和取用的是同一个
     // key 标注,类型链条没有断点。
     return result.value as T
@@ -364,7 +362,7 @@ export function inject<T>(key: InjectionKey<T>): T | undefined
 export function inject<T>(key: InjectionKey<T>, defaultValue: T): T
 ```
 
-为什么只有重载能表达:"参数传没传"是**调用形态**,不是类型 —— 可选参数类型 `defaultValue?: T` 在签名上只是"T 或缺席",拿不到"缺席与否"来决定返回类型。重载是 TS 里唯一按形态分派的机制。这也回答了"为什么 Vue 的 inject 有四个重载"(含 defaultValue 工厂函数形态)。
+单一签名若固定返回 T | undefined，就不会因传入默认值自动改变返回类型。重载可清晰列出两种调用形态；也可以用泛型元组与条件返回类型表达相关性，并非只有重载能做到。本题选择重载以保持调用契约直观。
 
 ### 2. inject 重载的实现签名写到最前 / 漏实现签名
 
@@ -507,25 +505,16 @@ return () => set.delete(stored)
 
 ## 三、思考题参考答案
 
-**Q1:`InjectionKey<A>` 和 `InjectionKey<B>` 结构上完全相同(T 没出现在属性里),TS 却能在 inject 时区分,靠什么?**
+**Q1：幽灵属性如何携带 T？不同载荷的 key 一定不兼容吗？**
 
-靠的是**推断发生在"读取变量声明类型"这一步,而不是"结构比较"**。`inject(key)` 时,TS 从 key 的声明标注 `InjectionKey<ThemeContext>` 里把泛型实参读出来赋给 T —— 这是正向的信息流动,不是 A、B 两个类型的比较。要害在于:结构化类型系统里,如果接口真是空的,`InjectionKey<A>` 和 `InjectionKey<B>` **确实可以互赋**(漏洞真实存在 —— 把 A 的 key 赋给标注 `InjectionKey<B>` 的变量,TS 不会拦,Vue 原版就有这个理论漏洞)。本仓库的幽灵属性 `__injectionType?: T` 顺带把它堵上了:`{ __injectionType?: A }` 与 `{ __injectionType?: B }` 结构不相容,互赋报错 —— 测试里 `provide<CurrentUser>(THEME_KEY, 42)` 的 `@ts-expect-error` 能命中,靠的正是幽灵属性(空接口版这个调用是过的)。结论:原版区分靠"标注携带的实例化信息",幽灵属性版才有了真正的结构防线。
-
-**Q2:Vue 源码里 inject 的实现内部有两处 as,为什么逃不掉?**
-
-因为**类型不携带运行时信息,而存储必须是异构的**。上下文(provides)是一个要装下所有类型值的容器,它的值类型只能是最宽的 unknown/any;取出时"这个 key 对应这个类型"的对应关系只存在于 key 的**类型标注**里,运行时无从验证 —— unknown → T 没有零 cast 的通路(不是 TS 能力不足,是数学边界:任何程序都无法在运行时验证"这个值是 T"当 T 是任意泛型)。本实现在 `result.value as T` 处遇到的是同一个边界。Vue 选择 as 并保持 provide/inject 签名对称(存取同标注),让类型链条在**API 边界**上没有断点 —— 这是工程上的最优解:把不可验证的部分压缩到一个有注释的点。
-
-**Q3(SETTINGS_KEY 的 JSDoc 必答):为什么 key 用 symbol 不用 string?**
-
-见参考实现的 SETTINGS_KEY JSDoc:string 是全局池子,两个包都用 'theme' 会静默互相覆盖(定时炸弹);Symbol() 每次产生全局唯一值,天然命名空间隔离;symbol 键不被 Object.keys/JSON.stringify/for...in 枚举,注入值不泄漏。跨包共享 key 的正确姿势:共享的是**导出的同一个 symbol 值**(同一个模块),而不是约定字符串。
-
-**Q4(骨架埋的点):lookupKey 的参数为什么是 `InjectionKey<unknown>` 而不是 `symbol`?**
-
-`InjectionKey<T>` 是接口(对象形状),`symbol` 是原始类型 —— 结构化类型系统里原始类型和接口之间没有赋值关系。参数写 `symbol` 的话,`lookupKey(THEME_KEY)`(THEME_KEY 的类型是接口)直接不兼容;而 `InjectionKey<unknown>` 能收下任何 `InjectionKey<T>`(幽灵属性 T → unknown,属性协变放行)。同理 contextStack 的 Map 键类型、provide 里 `current.set(key, value)` 的参数检查,走的都是这条协变链 —— `unknown` 在这里当"任何 InjectionKey 的公共超类型"用。
+本练习的 `__injectionType?: T` 将 T 放入结构中，使 provide/inject 可以从 key 推导载荷类型。
+载荷结构不兼容时，对应 key 也不兼容；结构相同或存在子类型关系时仍可能赋值。
+它不是“不同泛型名字就不能互赋”的名义品牌。应分别验证载荷结构，而不是把教学模型
+等同于某个 Vue 版本的实现，或宣称所有不同 T 的 key 都被隔离。
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错、`pnpm vitest run src/day14` 全过(本 day 20 个用例)
+- [ ] `pnpm check:day 14` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`;as 仅两处(emitter 存储擦除、inject 取值擦除),各带 `// TODO(reason)`
 - [ ] `SETTINGS_KEY` 带类型标注 `InjectionKey<NotificationSettings>`;JSDoc 回答了 symbol vs string
 - [ ] inject 是重载签名;传默认值时返回类型**没有** `undefined`

@@ -1,5 +1,36 @@
 # Day 14 — provide/inject 类型安全 + emits 事件映射(纯 TS 模拟)
 
+## 重学导读
+
+**前置知识**：Day 10 重载、Day 11 事件关联；Part 1 的 Symbol 脚手架可直接使用。
+
+**今天要学会**：让注入 key 携带值类型，并精确表达缺省值和事件参数列表。
+
+### 先理解三个概念
+
+| 概念 | 怎么理解 |
+|---|---|
+| Symbol 与类型 | Symbol 在运行时提供唯一键，InjectionKey<T> 在类型层连接键和值；载荷结构相同的类型不因此获得名义隔离。 |
+| 缺失与默认值 | 未提供默认值的读取可能缺失；提供默认值后返回类型可更精确。先分别列出两种调用，再写重载。 |
+| 元组事件 | 把载荷扩展为参数元组后，一个事件可以有多个参数；空元组仍表示零参数，参数位置和数量都受检查。 |
+
+### 动手顺序
+
+先读上下文栈脚手架 → 定义领域类型与 key → 实现 provide/inject → 完成事件映射 → 检查嵌套查找和取消订阅。
+
+先读 [验收测试](./solution.test.ts)，再编辑 [练习实现](./solution.ts)。已有实现时先按[重学方法](../../docs/LEARNING-ORDER.md)保存历史，再独立重写；不要用旧代码的通过结果代替本轮练习。
+
+### 学完自测
+
+- **解释**：类型标注会创建幽灵字段吗？为什么 inject 的一次断言需要依赖 provide 的写入约定？
+- **迁移**：为表格编辑页设计一个服务 key，说明没有提供服务时调用方应如何处理。
+- **验收**：在项目根目录运行 `pnpm check:day 14`，同时看类型检查与运行时测试。
+- **记录**：按[每日自评模板](../../docs/DAILY-REVIEW-TEMPLATE.md)记录本次结果；参考答案在整题通过后再看。
+
+下面保留完整题目与验收要求。一天可拆成多次学习，导读中的先后顺序不减少整题要求。
+
+---
+
 ## 业务场景
 
 chipRunner 的通知中心是三层组件树:`App` → `NotificationPanel` → `NotificationItem`。
@@ -23,9 +54,9 @@ export interface InjectionKey<T> extends Symbol {
 }
 ```
 
-Vue 源码里的定义是 `interface InjectionKey<T> extends Symbol {}`(一行都没多)。
-这里多出的 `__injectionType?: T` 是**幽灵属性**:因为本仓库开了 `noUnusedLocals`,
-T 不被任何成员读到会报 TS6133;幽灵属性运行时永远是 undefined,类型层行为与 Vue 原版完全一致。
+这里的 `__injectionType?: T` 是本练习的**幽灵属性**，用于在类型结构中携带 T，
+同时避免未使用类型参数的报错。这是教学用的简化模型，不声称与 Vue 源码定义完全一致。
+本题通过 `Symbol()` 创建 key，不创建这个可选属性；接口声明本身不会生成运行时字段。
 它的工作原理:**接口继承 `Symbol`,泛型 T 只出现在类型标注上**,
 于是 `InjectionKey<ThemeContext>` 和 `InjectionKey<CurrentUser>` 就是两个不同的类型标注。
 
@@ -39,9 +70,8 @@ T 不被任何成员读到会报 TS6133;幽灵属性运行时永远是 undefined
 
 ### 思考题(写进 NOTES.md,不进测试)
 
-- `InjectionKey<A>` 和 `InjectionKey<B>` 结构上完全相同(T 没出现在任何属性里),
-  TS 却能在 `inject` 时区分它们,靠的是什么?(答案和"结构化类型"有关,想想推断发生在哪一步)
-- Vue 源码里 `inject` 的实现内部有两处 `as`。为什么"全世界最讲类型安全的框架"也逃不掉?
+- `__injectionType?: T` 如何参与泛型推断？当 A、B 结构相同或不同时，key 的赋值兼容性分别怎样？
+- 本练习的 inject 从保存 unknown 的容器读取值时，如何恢复 T？若使用断言，需要哪些运行时不变量支撑？
 
 ---
 
@@ -60,7 +90,7 @@ T 不被任何成员读到会报 TS6133;幽灵属性运行时永远是 undefined
    - `on(event, handler)` 返回取消订阅函数
    - `emit(event, ...args)` 参数逐个类型检查
    - **难点**:内部存储用什么类型?事件名是异构的,你总会在某一行遇到类型擦除 ——
-   允许**一处** `as`/`unknown` 转换,必须紧跟 `// TODO(reason)` 说明(这就是 Vue 源码里那两处 as 的处境)。
+   事件存储允许**一处**类型断言，inject 从 unknown 恢复 T 另允许**一处**；各自用 `// TODO(reason)` 说明写入与读取的关联依据。
 
 ---
 
@@ -76,8 +106,8 @@ T 不被任何成员读到会报 TS6133;幽灵属性运行时永远是 undefined
 
 ## 验收点
 
-- [ ] `pnpm typecheck` 零错,`pnpm vitest run src/day14` 全过
-- [ ] 零 `any`、除事件存储擦除点外零 `as`(擦除点必须有 TODO(reason) 注释)
+- [ ] `pnpm check:day 14` 通过（类型检查 + 运行时测试；未完成的占位代码报错是预期现象）
+- [ ] 零 `any`；类型断言仅允许两处：事件存储一次、inject 取值一次，各带 TODO(reason) 说明
 - [ ] 所有 export 有中文 JSDoc + `@example`
 - [ ] `SETTINGS_KEY` 的 JSDoc 回答了"为什么用 symbol 不用 string"
 - [ ] `emit('user:rename', '不是数字', 'x')` 这类调用编译报错(测试有 @ts-expect-error 反例)
@@ -87,3 +117,7 @@ T 不被任何成员读到会报 TS6133;幽灵属性运行时永远是 undefined
 
 贴 `solution.ts`,说:"点评 + 解释为什么"。
 卡超过 10 分钟来要提示(不要答案)。建议节奏:Part 1 20 分钟 → Part 2 40 分钟 → Part 3 30 分钟。
+
+---
+
+[上一题：Day 13](../day13/README.md) · [学习目录](../../docs/LEARNING-ORDER.md) · [下一题：Day 15](../day15/README.md)

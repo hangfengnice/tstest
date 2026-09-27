@@ -8,7 +8,7 @@
  *
  * 规则:
  *   - 不 import vue,手写类型机制
- *   - 零 any;事件存储的类型擦除点允许一处 as/unknown + TODO(reason)
+ *   - 零 any；事件存储一次、inject 取值一次类型断言，各带 TODO(reason)
  *   - 所有 export 必须有 JSDoc + @example
  */
 
@@ -17,15 +17,14 @@
 // =============================================================
 
 /**
- * 注入 key —— Vue 3 源码同款模式:接口继承 `Symbol`,泛型 T 只存在于类型层。
+ * 注入 key —— 教学用的 Symbol key 模式:接口继承 `Symbol`,泛型 T 只存在于类型层。
  * 这样 `InjectionKey<ThemeContext>` 就是一个"携带"了值类型的 key:
  * provide/inject 的泛型推断全靠它的**类型标注**完成。
  *
- * 和 Vue 原版的唯一差别:Vue 原版是 `interface InjectionKey<T> extends Symbol {}`(T 不出现在任何成员里),
- * 但本仓库开了 noUnusedLocals,未使用的类型参数会报 TS6133,
- * 所以加了一个**幽灵可选属性**让 T 被"读到" —— 它运行时永远是 undefined,类型层行为与 Vue 原版完全一致。
- *
- * 为什么接口本身没有任何实质成员,TS 却能在 inject 时区分不同的 T?——见 README 思考题。
+ * 本练习用可选幽灵属性携带 T，同时避免未使用类型参数的报错。
+ * 通过 Symbol() 创建 key 时不创建该字段；接口声明本身不生成运行时属性。
+ * 不同载荷是否兼容取决于结构，不能将“泛型参数名字不同”当成名义类型隔离。
+ * 这是教学用的简化模型，不声称与 Vue 的具体源码版本完全一致。
  *
  * @example
  *   const THEME_KEY: InjectionKey<ThemeContext> = Symbol('theme')
