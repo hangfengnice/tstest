@@ -1,6 +1,6 @@
 # Day 9 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 09` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 以下参考实现已通过本 day 全部验收测试(`npx vitest run src/day09` 38/38 全绿,`pnpm typecheck` 本 day 零错误)。
@@ -190,7 +190,7 @@ export type FormState<T> = {
  *
  * 签名从测试反推:传 EmailRegisterForm 得 FieldErrors<EmailRegisterForm>,
  * 传 PhoneRegisterForm 得 FieldErrors<PhoneRegisterForm> ——
- * 返回类型跟着入参收窄,唯一解是 `<T extends RegisterForm>(form: T): FieldErrors<T>`。
+ * 返回类型跟着入参收窄，本题主线采用 `<T extends RegisterForm>(form: T): FieldErrors<T>`。
  *
  * 校验规则:
  *   - username 去掉首尾空格后为空 → '用户名必填'
@@ -253,7 +253,7 @@ export function validateRegisterForm<T extends RegisterForm>(form: T): FieldErro
 }
 ```
 
-### 附:零 as 的重载版(同样实测 38/38 全绿)
+### 附:零 as 的重载版（纳入 check:textbook 验证）
 
 "返回类型跟着入参走"除了泛型还有第二条路:**函数重载**。实现签名吃具体联合,
 函数体内全是具体类型,一次 as 都不用:
@@ -261,6 +261,7 @@ export function validateRegisterForm<T extends RegisterForm>(form: T): FieldErro
 ```ts
 export function validateRegisterForm(form: EmailRegisterForm): FieldErrors<EmailRegisterForm>
 export function validateRegisterForm(form: PhoneRegisterForm): FieldErrors<PhoneRegisterForm>
+export function validateRegisterForm(form: RegisterForm): FieldErrors<RegisterForm>
 export function validateRegisterForm(
   form: RegisterForm,
 ): FieldErrors<EmailRegisterForm> | FieldErrors<PhoneRegisterForm> {
@@ -284,8 +285,8 @@ export function validateRegisterForm(
 ```
 
 两版取舍(记进 NOTES 的素材):
-- 泛型版:对**子类型**友好(传 `{...emailForm, username: '  '}` 这种推导出的形状,T 推成 EmailRegisterForm,精确);代价是那一次 as;
-- 重载版:零 as、函数体全是具体类型;代价是调用方传**介于两者之间的形状**时只能匹配到最接近的重载,且加第三种注册方式要同时维护重载列表;
+- 泛型版：保留入参子类型的键信息；主参考实现需要一次说明理由的断言。
+- 重载版：零 as；分别列出邮箱、手机以及联合参数三条对外签名。联合变量需要第三条重载，调用方看不到实现签名；新增注册方式时同步维护列表。
 - 还有个邪道:分支里 `Object.assign(errors, emailBranch)` —— 能编译(Object.assign 的签名不查键兼容),但那是钻签名宽松的空子,**把不可判定藏在库的漏洞里**,不如明写一次 as 加注释诚实。工程上"显式断言 + 原因注释"优于"隐式漏洞"。
 
 ## 二、常见错误写法(点评人视角)
@@ -419,7 +420,7 @@ return errors[field] === undefined ? undefined : errors[field]
 
 ### Part 1 第 4 题:平行可选字段丢掉什么?
 
-三个保证:必填(选了 email 就必须填 email)、互斥(email/phone 不能同时有)、
+三个保证:必填(选了 email 就必须填 email)、对象字面量的多余字段检查、
 收窄后的非空(收窄分支里字段仍是 `xxx | undefined`)。
 一句话:可选字段表达"有什么",联合成员表达"什么时候必须有什么"。
 
@@ -445,7 +446,7 @@ TS 自动并入 undefined —— 不用手写,写了反而说明没读懂类型�
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全过
+- [ ] `pnpm check:day 09` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`;`validateRegisterForm` 里至多一次 `as`,且带原因注释
 - [ ] 所有 export 有 JSDoc + `@example`
 - [ ] 条件字段进类型系统:选 email 传 phone、选 phone 缺 smsCode 都是编译错误

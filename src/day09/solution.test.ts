@@ -45,6 +45,18 @@ const emptyState: FormState<EmailRegisterForm> = {
   submitCount: 0,
 }
 
+describe('Day 9 — 联合参数调用', () => {
+  it('支持尚未收窄的 RegisterForm 变量', () => {
+    function validate(form: RegisterForm) {
+      const result = validateRegisterForm(form)
+      expectTypeOf(result).toEqualTypeOf<FieldErrors<RegisterForm>>()
+      return result
+    }
+    expect(validate(emailForm)).toEqual({})
+    expect(validate(phoneForm)).toEqual({})
+  })
+})
+
 // =============================================================
 // Part 1 — 条件字段 + 嵌套字段
 // =============================================================
