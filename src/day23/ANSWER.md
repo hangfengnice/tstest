@@ -1,6 +1,6 @@
 # Day 23 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 23` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -139,10 +139,9 @@ export type Path<T> = T extends { name: infer N extends string }
    }
 ```
 
-现象:数组**也是** object —— quickActions 走进对象分支,被当成
-"键是 0/1/push/... 的对象"递归映射,产物既不是数组也没有正确的元素可选性,
-`quickActions?: { label?: string; command?: string }[]` 断言挂。
-**数组判断必须排在 object 判断前面**。函数同理(函数也是 object,
+同态可选映射仍保留数组身份，但会使元素位置可选，元素类型可能包含 undefined，
+与本题“数组元素仍须存在、只把元素字段变可选”的目标不同。
+本题 DeepPartial 的数组元素处理与同态可选映射不同，应先识别数组。函数也要先识别(函数也是 object,
 被映射后函数类型面目全非),所以参考实现是四段式:数组 → 函数 → 对象 → 原始值。
 
 ### 4. DeepReadonly 数组分支忘了 readonly 前缀(实测必踩)
@@ -154,7 +153,7 @@ export type Path<T> = T extends { name: infer N extends string }
 现象:产物是**可变**数组 —— `frozen.quickActions.push(x)` 编译通过!
 测试"readonly 数组不能冒充可变数组"挂:`{readonly label: string}[]`
 仍可赋给 `{label: string}[]`(属性 readonly 不影响赋值兼容),
-所以 `not.toMatchTypeOf` 断言失败。冻结数组的唯一正确表示是
+所以 `not.toMatchTypeOf` 断言失败。本实现中只读数组使用
 `readonly E[]`(ReadonlyArray):它的方法面里**根本没有** push/splice。
 
 ```ts
@@ -250,14 +249,18 @@ C 推断成 unknown,分支行为很难推理;参考实现用**必填 children �
 (函数也是对象)。把 string 递归进去倒不会错(string 不 extends object),
 但函数和数组一定会踩。
 
-### DeepReadonly 的数组分支为什么不能直接递归映射?
+### DeepReadonly 如何处理数组与元组？
 
-数组的方法面(push/splice)是它作为**数组**的身份的一部分。
-要"冻结"数组,需要的是 ReadonlyArray —— 一个方法面上**没有修改方法**
-的独立类型,而不是给"名为 push 的属性槽位"加 readonly(那只能阻止
-重新赋值 push,阻止不了调用它)。同时注意常见错误 4/6:分支里忘了
-`readonly` 前缀,或键列动了手术失去同构性,数组冻结都会静默失效或类型坏死。
-显式分流 + 显式 `readonly E[]` 是唯一把意图写清楚的方式。
+TypeScript 的同态 readonly 映射会将数组和元组转换为只读版本，因此可以直接递归映射：
+
+```ts
+type MappedReadonly<T> = T extends (...args: never[]) => unknown ? T
+  : T extends object ? { readonly [K in keyof T]: MappedReadonly<T[K]> } : T
+```
+
+参考实现选择显式数组分支，是为了直接表达只读数组的结果，不是唯一合法写法。
+两者都应阻止 push；同态映射还能保留元组的长度与各位置类型。
+注意 `DeepReadonly<E>[]` 是“元素只读、数组可变”，与 `readonly DeepReadonly<E>[]` 不同。
 
 ### DeepReadonly 与 DeepPartial 的数组分支为什么语义相反?
 
@@ -266,12 +269,12 @@ Partial 数组:PATCH 语义 —— patch 里的数组是**替换值**,调用方�
 赋进来,字段必须保持可变数组类型才收得下。两个工具一个收紧一个放松,
 方向相反才是对的。
 
-### Path:为什么 children 必须是元组?
+### Path:为什么本题用元组保存 children?
 
-`FileTreeNode[]` 只说"元素都是 FileTreeNode",有几个元素、每个的
-name 字面量是什么,类型系统一概不知 —— 枚举路径需要**每一个子节点的
-具体类型**,只有元组逐位保留了。这正是"数据定义里丢了信息,
-类型推导就无米下锅"的典型:Day 24 的 as const 元组是同一主题。
+`FileTreeNode[]` 没有保留具体的 name 字面量，无法枚举精确路径。
+元组是一种保留具体子节点类型的方式；元素类型为具体节点联合的数组也可以，
+因为这里通过 `C[number]` 取元素类型，不依赖长度与顺序。
+关键是不要提前把字面量信息拓宽；Day 24 的 as const 元组是同一主题。
 
 ### (附)为什么 `{ ...base }` 拷贝而不是直接改 base?
 
@@ -282,7 +285,7 @@ Vue 里"把 props/服务端数据拷进本地 state 再改"是同一个习惯。
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全过
+- [ ] `pnpm check:day 23` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`;`FileTreeNode` / `DeepPartial` / `DeepReadonly` / `Path` 全部递归实现
 - [ ] `FileTreeNode.children` 可选;测试第一条形状断言通过
 - [ ] `DeepPartial`:每一层的字段都可选(theme.name 也是),数组元素字段可选但数组本身可变
