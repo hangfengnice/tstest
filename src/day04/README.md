@@ -1,9 +1,40 @@
 # Day 4 — 自定义类型守卫(is 谓词)+ unknown 安全解析
 
+## 重学导读
+
+**前置知识**：Day 3：unknown、typeof、in；Day 2：泛型结果容器。
+
+**今天要学会**：从不可信 JSON 中恢复可信的业务数据，并解释每一层验证。
+
+### 先理解三个概念
+
+| 概念 | 怎么理解 |
+|---|---|
+| 类型谓词 | `value is T` 告诉调用方：返回 true 时把 value 当作 T。编译器不会证明函数体检查完整，漏检查会造成错误承诺。 |
+| 解析与校验 | JSON.parse 只证明文本可解析，不证明字段正确；结果先接到 unknown，再检查对象、字段和数组元素。 |
+| 依赖注入 | 让 loadDraft 接收 StorageLike，测试便能传入假存储；读取逻辑不必依赖浏览器全局对象。 |
+
+### 动手顺序
+
+先写最小守卫 → 拼接消息与草稿守卫 → 区分缺失、解析失败、形状错误 → 再从测试反推 decodeJson 的泛型。
+
+先读 [验收测试](./solution.test.ts)，再编辑 [练习实现](./solution.ts)。已有实现时先按[重学方法](../../docs/LEARNING-ORDER.md)保存历史，再独立重写；不要用旧代码的通过结果代替本轮练习。
+
+### 学完自测
+
+- **解释**：能解析的 JSON 为什么仍可能不是草稿？只验证数组第一个元素会漏掉什么？
+- **迁移**：为缓存的购物车草稿列出有效、旧版本缺字段、非法 JSON 三种输入。
+- **验收**：在项目根目录运行 `pnpm check:day 04`，同时看类型检查与运行时测试。
+- **记录**：按[每日自评模板](../../docs/DAILY-REVIEW-TEMPLATE.md)记录本次结果；参考答案在整题通过后再看。
+
+下面保留完整题目与验收要求。一天可拆成多次学习，导读中的先后顺序不减少整题要求。
+
+---
+
 ## 业务场景
 
 chipRunner 支持"对话草稿":你打到一半的对话存在 localStorage 里,刷新页面后恢复。
-但 localStorage 里的一切都是 `string | null`,`JSON.parse` 出来的是 `unknown` ——
+但 localStorage 里的一切都是 `string | null`,`JSON.parse` 的结果要主动用 `unknown` 接住 ——
 **磁盘上的数据不可信**:上个版本的草稿、用户手改过的 DevTools、别的页面写入的垃圾,都可能是你的 `getItem` 返回值。
 
 昨天(Day 3)你用 typeof / in / instanceof 收窄。今天写**自定义类型守卫** —— `x is T` 谓词,
@@ -17,7 +48,7 @@ chipRunner 支持"对话草稿":你打到一半的对话存在 localStorage 里,
 ## Part 1 — 🟢 基础:两个最小的守卫积木
 
 1. `isString(value: unknown): value is string` —— 最小的 is 谓词,一行搞定。
-2. `isRecord(value: unknown): value is Record<string, unknown>` —— 判断"是普通对象":
+2. `isRecord(value: unknown): value is Record<string, unknown>` —— 本题判断“非 null、非数组的对象”（不保证原型是 Object.prototype）:
    `typeof === 'object'`、非 null、**非数组**。它是后续一切对象守卫的地基。
 
 ## Part 2 — 🟡 进阶:嵌套 unknown 的逐层验证
@@ -65,7 +96,7 @@ chipRunner 支持"对话草稿":你打到一半的对话存在 localStorage 里,
 
 ## 验收点
 
-跑 `pnpm typecheck` 和 `pnpm test` 必须全部通过。
+运行 `pnpm check:day 04`，类型检查和运行时测试必须全部通过。
 
 - [ ] 零 `any`、零 `as`(守卫本身就是 as 的替代品)
 - [ ] 所有 `export` 有 JSDoc + `@example`
@@ -88,3 +119,7 @@ chipRunner 支持"对话草稿":你打到一半的对话存在 localStorage 里,
 
 **建议节奏**:Part 1 十五分钟 → Part 2 四十五分钟 → Part 3 三十分钟。
 卡超过十分钟再来问,要提示不要答案。
+
+---
+
+[上一题：Day 3](../day03/README.md) · [学习目录](../../docs/LEARNING-ORDER.md) · [下一题：Day 5](../day05/README.md)
