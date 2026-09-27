@@ -1,6 +1,6 @@
 # Day 28 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 28` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -338,23 +338,24 @@ export function loadFromStorage(storage: KVStorage, key: string): Todo[] {
 
 ## 二、常见错误写法(点评人视角)
 
-### 1. createTodo 无脑展开 `...input`
+### 1. 区分对象展开与显式重建可选属性
+
+`{ ...input }` 不会凭空添加缺失的 tags；原先“没传 tags 也会展开出 undefined 键”的解释有误。
+但下面的写法会主动创建 tags 属性，即使它的值是 undefined：
 
 ```ts
-// ❌
-export function createTodo(input: CreateTodoInput): ActiveTodo {
-  return { status: 'active', id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...input }
-}
+// 不符合“不传 tags 就不产生该键”的要求
+const result = { ...base, tags: input.tags }
 ```
 
-现象:测试"不传 tags 时,产出对象上没有 tags 键"红 —— `'tags' in t` 是 `true`。
-为什么错:`input.tags` 的类型是 `string[] | undefined`,没传 tags 的 input 里 `tags` 键**存在且值为 undefined**,展开会把这个键原样搬进结果。类型层 exactOptionalPropertyTypes 就是在挡这件事(显式 `tags: undefined` 不兼容 `tags?: string[]`);运行时层要自己保证"键不存在":
+如果输入本身存在 `tags: undefined`，对象展开会保留该键。条件构造可以显式清理它：
 
 ```ts
-// ✅ 有才拼,没有就不写这个键
 return input.tags === undefined ? base : { ...base, tags: input.tags }
-// 条件展开版:return { ...base, ...(input.tags === undefined ? {} : { tags: input.tags }) }
 ```
+
+类型标注不会改变运行时对象。`exactOptionalPropertyTypes` 检查的是 TypeScript 调用方，
+外部输入仍需校验；“属性缺失”与“属性存在但值为 undefined”要分别验证。
 
 ### 2. done → active 用 spread 顺手写,**编译器不救你**
 
@@ -465,7 +466,7 @@ for (let i = 0; i < value.length; i++) {
 
 ## 四、验收自查清单
 
-- [ ] `pnpm test` 中 day28 全绿;`pnpm typecheck` 中 day28 错误清零
+- [ ] `pnpm check:day 28` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`、零 `as`(JSON.parse 的结果先接 unknown,过了守卫才用)
 - [ ] 所有 export 有中文 JSDoc + `@example`
 - [ ] `createTodo` 不传 tags 时产出对象无 tags 键(`'tags' in t === false`)
