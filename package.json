@@ -5,6 +5,9 @@
   "type": "module",
   "description": "30 天 TypeScript 高强度练习,严格模式 + Vue 生态结合",
   "scripts": {
+    "check:textbook": "node scripts/verify-textbook.mjs",
+    "check:day": "node scripts/check.mjs day",
+    "check:completed": "node scripts/check.mjs completed",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
