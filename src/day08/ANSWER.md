@@ -1,6 +1,6 @@
 # Day 8 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 08` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 以下参考实现已通过本 day 全部验收测试(`npx vitest run src/day08` 44/44 全绿,`pnpm typecheck` 本 day 零错误)。
@@ -463,4 +463,4 @@ export type MyParameters<T> = T extends (...args: infer P) => unknown ? P : neve
 - [ ] `emitRaw` 对坏数据返回 false 且不触发任何处理器
 - [ ] 测试里 @ts-expect-error 反例保持生效
 - [ ] (复盘)Day 1 的 switch 穷尽、Day 4 的守卫现在还卡吗?卡点记进 NOTES.md
-- [ ] `npx vitest run src/day08` 全绿、`pnpm typecheck` 本 day 零错误
+- [ ] `pnpm check:day 08` 通过（类型检查 + 运行时测试）
