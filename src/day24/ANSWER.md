@@ -1,6 +1,6 @@
 # Day 24 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 24` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -156,7 +156,7 @@ First<T> 的结果"(它不肯对泛型做分类讨论)。README 教的解法是 
 ❌ export type Awaited<T> = T extends Promise<infer V> ? V : T
 ```
 
-现象:`Awaited<Promise<Promise<Promise<number>>>>` = `Promise<number>`
+现象:`Awaited<Promise<Promise<Promise<number>>>>` = `Promise<Promise<number>>`
 —— 只剥了一层。必须对 V **再来一次**:`Awaited<V>`。递归条件类型
 是"剥到不是 Promise 为止"的循环写法,终止条件就是 false 分支的 `T`。
 
@@ -254,7 +254,7 @@ Response、一些库的 lazy promise 都是)。内置 Awaited 匹配的是 thena
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全过
+- [ ] `pnpm check:day 24` 通过（类型检查 + 运行时测试）
 - [ ] 五个类型工具:类型层面零 as;两个 `any` 只出现在 Awaited 的
       thenable 推断脚手架里(若你用了简单版 Awaited,unwrapAll 的 as 必须带注释)
 - [ ] `First<[]>` = never;`Length<string[]>` = number;`TupleToUnion<string[]>` = string

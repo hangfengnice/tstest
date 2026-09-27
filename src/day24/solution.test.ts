@@ -43,6 +43,14 @@ describe('Day 24 — Part 1 First / Length', () => {
     expectTypeOf(firstOf(FORM_FIELDS)).toEqualTypeOf<'title'>()
   })
 
+  it('firstOf 的调用契约拒绝空元组', () => {
+    function invalidCall() {
+      // @ts-expect-error —— 空元组无首项，运行时函数只接受非空输入
+      firstOf([] as const)
+    }
+    void invalidCall
+  })
+
   it('lengthOf 运行时返回长度,类型是字面量 3', () => {
     expect(lengthOf(FORM_FIELDS)).toBe(3)
     expectTypeOf(lengthOf(FORM_FIELDS)).toEqualTypeOf<3>()

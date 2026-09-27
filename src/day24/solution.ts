@@ -68,7 +68,7 @@ export type First<T extends readonly unknown[]> = never // ← 替换
 export type Length<T extends readonly unknown[]> = never // ← 替换
 
 /**
- * 取表单第一个字段(运行时)—— 返回类型由 First<T> 决定。
+ * 取非空表单元组的第一个字段（运行时）。修改占位签名，使空元组不能传入，并保留首项类型；First<[]> 的类型计算仍单独验收。
  *
  * @example
  *   firstOf(['title', 'content', 'tags'] as const)  // => 'title',类型 'title'
