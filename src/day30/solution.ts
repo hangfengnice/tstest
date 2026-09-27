@@ -108,10 +108,10 @@ export type Greet<S extends string> = never // ← 替换
 
 /**
  * Q10:keyof ({ a; b } & { b; c }) = ?
- * 解释(keyof 交叉 = 并,对比 keyof 联合 = 交):____
+ * 解释：先判断题面中冲突字面量属性是否让交叉退化，再求 keyof：____
  *
  * @example
- *   type Answer = Q10 // 期望具体的键联合
+ *   type Answer = Q10 // 先判断交叉本身的结果
  */
 export type Q10 = never // ← 替换为键联合
 

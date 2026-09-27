@@ -1,6 +1,6 @@
 # Day 30 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 30` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 > 今天尤其如此:**测试只判 14 个答案类型,判不了你注释里的"为什么"** —— 第三节才是复盘的重点,逐题过。
 
@@ -30,7 +30,7 @@ export type Q1 = true
 /**
  * Q2:宽 string 判别符 —— const _exhaustive: never = shape 还能通过编译吗?
  * 解释:不能。kind: string 时两个 case 都收窄不了联合,default 分支里
- * shape 仍是完整类型,string 不能赋给 never —— 穷尽检查随之失效,
+ * shape 仍是完整对象类型，不能赋给 never —— 这个对象不是有限分支联合,
  * 这正是"判别符必须字面量"的终极理由。
  *
  * @example
@@ -128,14 +128,13 @@ export type Greet<S extends string> = `hello-${S}`
 
 /**
  * Q10:keyof ({ a; b } & { b; c }) = ?
- * 解释:'a' | 'b' | 'c'。交叉类型是"同时是两者",能访问的键是两边
- * 键的**并集**;对比 keyof 联合 = 各成员键的**交集**(Q14 的坑)——
- * 一并一交,方向相反,这是 keyof 两副面孔。
+ * 解释：本题 b: 2 与 b: 3 冲突，使整个交叉退化为 never。
+ * keyof never 是 string | number | symbol；若两侧 b 都为 2，才得到 a | b | c。
  *
  * @example
- *   type Answer = Q10 // 'a' | 'b' | 'c'
+ *   type Answer = Q10 // string | number | symbol
  */
-export type Q10 = 'a' | 'b' | 'c'
+export type Q10 = string | number | symbol
 
 /**
  * Q11:as const + satisfies 能让 cfg.port 是字面量 3000 且整体通过校验吗?
@@ -166,7 +165,7 @@ export type Q12 = readonly ['a', 'b']
  * 解释(predicate 收窄的原理):返回类型 `value is number[]` 是给
  * 控制流分析的"承诺" —— 函数返回 true 的分支里,编译器把 value 的
  * 类型替换为谓词里的类型。承诺本身不校验,所以**函数体的每个 return
- * 都必须真的兑现它**,守卫是运行时校验和类型系统的唯一合法接头。
+ * 都必须真的兑现它**,守卫是连接运行时检查与类型收窄的一种方式。
  *
  * @example
  *   isNumberList([1, 2])   // => true
@@ -249,9 +248,9 @@ type Greet<S> = `hello-${S}`
 
 模板字面量的插值位只收字符串系基本类型;S 是"任何可能的类型",先 `S extends string` 把它按在字符串域里。和 Day 26/27 的 `K & string` 是同一课:**进模板/进 Capitalize,先证明你是 string**。
 
-### Q10 — 错答 'b'
+### Q10 — 直接套用“交叉的键取并集”
 
-把 keyof 交叉记成了"公共键"。方向反了:**keyof 交叉 = 并集**(同时是两种类型,两边的键都可用),**keyof 联合 = 交集**(得对每个成员都安全,只有公共键可用)。一并一交,Q10 和 Q14 互为镜像 —— 这对题放在一起记,一辈子忘不掉。
+本题先要计算对象交叉本身：`b: 2` 与 `b: 3` 无法同时成立，编译器将整个交叉约化为 never，随后 `keyof never` 得到 `string | number | symbol`。两侧 b 都为 2 时，才可按普通可兼容对象交叉得到 `'a' | 'b' | 'c'`。
 
 ### Q11 — 错答 false
 
@@ -272,7 +271,7 @@ type Greet<S> = `hello-${S}`
 
 ### Q14 — 错答 true(本题的"标准陷阱")
 
-Omit 是"先用 keyof 取键、再映射"两步,**作用在联合上时两步都不分发**。keyof Cat | Dog = 'id'(交集),Omit 掉 'id' 后什么都不剩 —— `{ meow } | { bark }` 是"想象中的分发",实际结果是两个空壳的联合。要对联合按分支 Omit,自己包一层分布式条件类型:`type DistributedOmit<T, K> = T extends unknown ? Omit<T, K> : never`(Day 2 的坑,30 天后的今天应该已经条件反射了)。
+Omit 是"先用 keyof 取键、再映射"两步,**作用在联合上时两步都不分发**。keyof Cat | Dog = 'id'(交集),Omit 掉 'id' 后什么都不剩 —— `{ meow } | { bark }` 是"想象中的分发",实际结果是空对象类型 `{}`。要对联合按分支 Omit,自己包一层分布式条件类型:`type DistributedOmit<T, K> = T extends unknown ? Omit<T, K> : never`(Day 2 的坑,30 天后的今天应该已经条件反射了)。
 
 ## 三、思考题参考答案(逐题"为什么"——人工判卷的替代)
 
@@ -288,28 +287,29 @@ Omit 是"先用 keyof 取键、再映射"两步,**作用在联合上时两步都
 
 **Q6 为什么:** unknown 上访问属性是 TS18046/TS2571 —— unknown 的设计哲学是"诚实的不确定":所有操作先证明类型再谈。它和 any 的区别不是"能不能用",是**谁承担责任**:unknown 把责任留在写代码的人手里,any 把责任推给运行时。
 
-**Q7 为什么:** any 与类型系统的约定是"别管我",属性访问、调用、赋值全绿,而且 any 还会**传染**(与任何类型的运算结果还是 any)。Q6/Q7 放一起:入口边界收 unknown、内部尽快守卫收窄、永远不主动写 any —— 30 天里 Day 4/28/29 反复练的就是这条纪律。
+**Q7 为什么:** any 与类型系统的约定是"别管我",属性访问、调用、赋值全绿,而且 any 还会**传染**(常常削弱后续检查，但不是所有运算结果都变成 any，例如 typeof 仍返回字符串)。Q6/Q7 放一起:入口边界收 unknown、内部尽快守卫收窄、永远不主动写 any —— 30 天里 Day 4/28/29 反复练的就是这条纪律。
 
 **Q8 为什么:** 同态映射类型 `[K in keyof T]` 逐键复制原类型的值和修饰符;`?` 修饰符叠加把每个键改成可选。修饰符家族:`?` / `-?` / `readonly` / `-readonly` —— Required、Readonly、Partial 三个内置工具全部是这个机制的直线应用。映射类型 = 键的重排 + 值的变换 + 修饰符的编辑,三件事(Day 26/27 的 as 重映射属于第一件)。
 
 **Q9 为什么:** 模板字面量的插值位置收 `string | number | bigint | boolean | null | undefined`,S 无约束时"可能是任何类型",必须 `S extends string` 收进字符串域。泛型参数进任何"有域要求"的位置(模板、Capitalize、索引访问)都要先满足域 —— 这也是 `K & string` 惯用法的来源。
 
-**Q10 为什么:** 交叉类型 A & B 表示"同时是 A 和 B",两边的键都在它身上,所以 keyof (A & B) = keyof A | keyof B(并);联合类型 A | B 表示"要么 A 要么 B",对它安全的键必须两边都有,所以 keyof (A | B) = keyof A & keyof B(交)。一并一交互为对偶。
+**Q10 为什么：** 本题的冲突字面量属性会让整个交叉退化成 never；keyof never 是所有属性键类型。先检查交叉结果，再计算 keyof。测试同时比较原题冲突案例与 b 相同的案例。
 
 **Q11 为什么:** `as const satisfies Record<string, number>` 的求值顺序:先 as const 收窄(port: 3000,全 readonly),再拿收窄结果对照 satisfies 右侧校验,校验通过则**保留收窄类型**。对比注解版 `const cfg: Record<string, number> = { port: 3000 }`:注解参与推断,变量类型就是注解类型,port 被宽化成 number。satisfies 存在的意义就是填"既要校验、又要保真"这个空档。
 
 **Q12 为什么:** as const 作用于数组字面量时,类型是"长度固定、元素全字面量、只读"的元组:readonly ['a', 'b']。三件事缺一不可:去掉 readonly 是可变元组,去掉元组是 readonly string[],去掉字面量是普通数组 —— 测试断言的正是完整三件套。
 
-**Q13 为什么:** 谓词 `value is number[]` 是控制流分析的输入:守卫返回 true 的分支里 value 被替换为 number[]。但**编译器不检查函数体是否兑现承诺** —— 写 `return true` 也能编译(然后在所有 false 该出现的地方炸)。所以守卫纪律:每个 return 路径都人工核对"此刻 value 真的是谓词说的那样"。守卫是 unknown 世界里唯一合法的"类型赋予点",Day 28 的 isTodoArray 用 20 行换一个 Todo[],这笔交易的本钱就是逐字段的诚实。
+**Q13 为什么:** 谓词 `value is number[]` 是控制流分析的输入:守卫返回 true 的分支里 value 被替换为 number[]。但**编译器不检查函数体是否兑现承诺** —— 写 `return true` 也能编译(然后在所有 false 该出现的地方炸)。所以守卫纪律:每个 return 路径都人工核对"此刻 value 真的是谓词说的那样"。自定义守卫是一种收窄方式；typeof、instanceof、in 等内置控制流检查也能收窄 unknown,Day 28 的 isTodoArray 用 20 行换一个 Todo[],这笔交易的本钱就是逐字段的诚实。
 
-**Q14 为什么:** `Omit<T, K>` 的实现是 `{ [P in Exclude<keyof T, K>]: T[P] }` —— 作用在联合上,第一步 keyof 就塌成交集 'id',第二步把 'id' 排掉,两边都剩空。**Omit/Umit/Pick 这类"基于 keyof 的工具"天生对联合不友好**;要按分支处理,先让条件类型分发:`T extends unknown ? Omit<T, K> : never`。Day 2 踩过的坑,今天应该能一眼识别并顺手写出分发版 —— 这就是 30 天的复利。
+**Q14 为什么：** 内置 Omit 基于 `Pick<T, Exclude<keyof T, K>>`。对 Cat | Dog 先取公共键 id，再删除 id，得到 `{}`。若要分别处理每个成员，可先用条件类型分发；不要把直接映射写法当成保留修饰符规则完全相同的标准库实现。
+
 
 ## 四、验收自查清单
 
 - [ ] Q1-Q14 类型答案测试全绿,Q13 运行时断言全绿
 - [ ] 每题的"为什么"注释都写了一句**自己**的话(不是抄题面)
-- [ ] `pnpm typecheck` 中 day30 错误清零
+- [ ] `pnpm check:day 30` 通过（类型检查 + 运行时测试）
 - [ ] 动手题(Q5/Q8/Q9/Q13)没用 as、没用内置 Partial/Awaited 偷懒
-- [ ] Q10 和 Q14 能互为镜像地讲清楚(keyof 一并一交)
+- [ ] Q10 先检查冲突导致的 never，Q14 能解释联合公共键与 Omit 的顺序
 - [ ] Q11 的 satisfies 三件套(注解 / satisfies / as const)能各举一个使用场景
 - [ ] 第三节 14 条"为什么",哪条讲不出来,回对应 Day 补:Q1/Q2/Q3 → Day 1;Q4/Q5/Q9 → Day 21-25(第三阶段);Q6/Q7 → Day 4;Q8 → Day 22 附近;Q10/Q12/Q14 → Day 2;Q11 → 第四阶段;Q13 → Day 28/29

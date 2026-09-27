@@ -80,8 +80,12 @@ describe('Day 30 — 🔴 Q9-Q14', () => {
     expectTypeOf<Greet<'day30'>>().toEqualTypeOf<'hello-day30'>()
   })
 
-  it('Q10:keyof 交叉 = 键的并集', () => {
-    expectTypeOf<Q10>().toEqualTypeOf<'a' | 'b' | 'c'>()
+  it('Q10:先计算冲突交叉，再求 keyof', () => {
+    type Conflicting = { a: 1; b: 2 } & { b: 3; c: 4 }
+    expectTypeOf<Conflicting>().toEqualTypeOf<never>()
+    expectTypeOf<Q10>().toEqualTypeOf<keyof Conflicting>()
+    expectTypeOf<Q10>().toEqualTypeOf<string | number | symbol>()
+    expectTypeOf<keyof ({ a: 1; b: 2 } & { b: 2; c: 4 })>().toEqualTypeOf<'a' | 'b' | 'c'>()
   })
 
   it('Q11:as const + satisfies 保留字面量窄化(true)', () => {
