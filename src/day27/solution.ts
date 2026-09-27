@@ -11,7 +11,7 @@
  * 规则:
  *   - 今天不写任何运行时代码
  *   - 零 any、零 as;所有 export 必须有中文 JSDoc + @example
- *   - 判卷:pnpm test(vitest 已开 typecheck 模式)或 pnpm typecheck
+ *   - 判卷:pnpm check:day 27(类型检查 + 运行时测试)
  */
 
 // =============================================================

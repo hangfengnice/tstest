@@ -1,6 +1,6 @@
 # Day 27 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 27` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -372,7 +372,7 @@ export type TagName<S extends FilterStatus> = S extends `tag:${infer T}` ? T : S
 **Q:为什么用字面量联合而不用 enum?**(TodoPriority 的 JSDoc 思考题)
 
 1. **零运行时产物**:字面量联合擦除后什么都不剩;enum 编译出真实的 JS 对象(常量枚举也有一堆限制)。
-2. **类型体操只认字面量**:模板字面量 `` `tag:${string}` ``、条件类型模式匹配、映射类型的 as 重映射,全部作用于**字符串字面量**;enum 成员在这些位置要先 `typeof` + keyof 绕一圈,还常常绕不出来。
+2. **表达直接**：本题字符串联合直接表达允许的值，也便于组合模板字面量。字符串 enum 同样可以参与模板字面量（如 `${State}`），并非类型运算不支持 enum。
 3. **边界友好**:JSON 来去的 API 载荷天然是 string,字面量联合直接对齐;enum 还要操心 `erasableSyntaxOnly`、isolatedModules 下的写法限制。
 结论:契约层(类型)和值层分开 —— 需要值层枚举语义(遍历所有成员、reverse mapping)才考虑 enum 或 `as const` 对象。
 
@@ -390,7 +390,7 @@ EventName、TodoListener、TodoStore、TodoHandlers 四个类型全部通过 key
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错(day27 部分),`pnpm test` 中 day27 用例全绿
+- [ ] `pnpm check:day 27` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`、零 `as`;所有 export 有中文 JSDoc + `@example`
 - [ ] `TodoPriority` 的 JSDoc 回答了"为什么不用 enum"
 - [ ] `KVStorage` 的 JSDoc 回答了"T 为什么在方法上"
