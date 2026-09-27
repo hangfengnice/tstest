@@ -1,5 +1,36 @@
 # Day 26 — 第三阶段综合:Pinia 风格 Store 的完整类型推导
 
+## 重学导读
+
+**前置知识**：Day 12 Store；Day 19–24 类型工具与元组；熟悉属性访问器。
+
+**今天要学会**：把状态、计算结果、绑定动作与订阅整合成一个推导清晰的 Store。
+
+### 先理解三个概念
+
+| 概念 | 怎么理解 |
+|---|---|
+| 分层推导 | 先提取 state，再提取 getter 结果、移除 action 首参，最后合并；每个工具都可以单独预测输入输出。 |
+| 绑定与订阅 | 外部调用不再传 state，内部包装器负责补入；动作执行与订阅通知是运行时工作，类型映射不能代做。 |
+| 快照 | 快照需要独立数据与只读约束。类型声明、深拷贝和运行时冻结各自负责不同保证。 |
+
+### 动手顺序
+
+先验证六个工具 → 组合 StoreInstance → 接 getter/action → 接取消订阅 → 最后验证快照隔离和冻结。
+
+先读 [验收测试](./solution.test.ts)，再编辑 [练习实现](./solution.ts)。已有实现时先按[重学方法](../../docs/LEARNING-ORDER.md)保存历史，再独立重写；不要用旧代码的通过结果代替本轮练习。
+
+### 学完自测
+
+- **解释**：为什么改 store 后旧快照应保持原值？仅给快照标 DeepReadonly 是否足够？
+- **迁移**：给一个订单 Store 画出定义端与调用端签名，标出 state 参数在哪一步消失。
+- **验收**：在项目根目录运行 `pnpm check:day 26`，同时看类型检查与运行时测试。
+- **记录**：按[每日自评模板](../../docs/DAILY-REVIEW-TEMPLATE.md)记录本次结果；参考答案在整题通过后再看。
+
+下面保留完整题目与验收要求。一天可拆成多次学习，导读中的先后顺序不减少整题要求。
+
+---
+
 ## 业务场景
 
 写 Vue 项目离不开 Pinia,但你有没有想过:`defineStore({ state, getters, actions })` 返回的 store,为什么 `store.items`(state)、`store.unreadCount`(getters)、`store.markAllRead()`(actions)能**全部平铺、全部带精确类型**?这层类型魔法 = 本周学的全部工具类型(条件 / 映射 / 模板字面量 / 递归 / 元组)的一次总装。
@@ -42,7 +73,7 @@
 7. `StoreInstance<D>`:把 D(definition 对象类型)组装成最终 store 类型 —— 交叉类型 + 上面全部工具 + 四个 `$` 方法。
 8. `defineStore` 运行时实现(协议):
    - state 是函数就调用,得到 state 对象;
-   - getters 包装成无参函数(每次调用把当前 state 传进去);
+   - getters 用属性访问器暴露结果(每次读取属性时，把当前 state 传给 getter);
    - actions 包装成"自动注入 state"的函数,**执行后触发对应订阅器**;
    - `$snapshot`:深拷贝(提示:`structuredClone`)后逐层 `Object.freeze`;
    - `$subscribe.onXxx`:注册回调、返回取消订阅函数。
@@ -60,8 +91,8 @@
 
 ## 验收清单
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全过
-- [ ] 六个类型工具全部实现,零 `any`;运行时 `defineStore` 零 `as`
+- [ ] `pnpm check:day 26` 通过（类型检查 + 运行时测试；未完成的占位代码报错是预期现象）
+- [ ] 六个类型工具全部实现，零 `any`；`defineStore` 允许在最终返回处使用一次类型断言，说明动态构造与返回类型的对应关系，并用测试验证
 - [ ] store 顶层:`store.items` / `store.unreadCount` / `store.markAllRead()` 类型与运行时全部正确
 - [ ] `store.$subscribe.onMarkAllRead` 订阅触发一次、off 后不再触发
 - [ ] `$snapshot` 深拷贝:改 store 不影响已取出的快照
@@ -72,3 +103,7 @@
 贴 `src/day26/solution.ts` 过来,说:"点评 + 解释为什么"。这是第三阶段收官题,写完把 Day 23-26 四份 solution 一起贴上来,我会做阶段总结。
 
 **建议节奏**:Part 1 15 分钟 → Part 2 40 分钟 → Part 3 60 分钟(总装 + 运行时)。卡超过 15 分钟来要提示,不要答案。
+
+---
+
+[上一题：Day 25](../day25/README.md) · [学习目录](../../docs/LEARNING-ORDER.md) · [下一题：Day 27](../day27/README.md)

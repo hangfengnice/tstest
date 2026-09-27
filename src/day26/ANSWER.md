@@ -1,32 +1,14 @@
 # Day 26 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 26` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
-## ⚠️ 疑似题面问题(先读,再对照实现)
+## 题面修订说明
 
-参考实现与骨架签名有两处刻意偏离,**不是偷懒,是题面本身无法零妥协满足**,证据都实际跑过 tsc:
-
-1. **骨架 `defineStore` 的 A 约束把 state 参数位置抹掉了,导致函数体内连 `action(state, ...)` 都无法编译。**
-   骨架约束是 `A extends Record<string, (...args: never[]) => unknown>`。`Object.entries(def.actions)` 拿到的每个 action 都被擦成"参数全是 never 的函数",调用 `action(state, ...)` 时报:
-
-   ```
-   error TS2345: Argument of type 'S' is not assignable to parameter of type 'never'.
-   ```
-
-   而 README 协议明确说"actions 的第一个参数是 state"。所以参考实现把约束收紧为
-   `A extends Record<string, (state: S, ...args: never[]) => unknown>` —— 这是**更忠实于协议**的写法(测试的 actions 全部满足它),不是放宽。
-2. **"运行时 defineStore 零 as"在这套类型测试下无法严格成立。**
-   store 顶层的 getters/actions 成员来自 `Object.entries` 的动态循环,而返回类型要求 `UnwrapGetters<G>` / `BoundActions<A>` 这两个**泛型映射类型**。"给泛型映射类型构造值"在 TS 里除 `as` 外无解,逐一验证过(每条都真实报错):
-
-   | 尝试 | 结果 |
-   |---|---|
-   | `const out: { [K in keyof G]: number } = {}` | `TS2322: Type '{}' is not assignable...` |
-   | `{ [k: string]: number }` 索引签名中转 | `TS2322`(索引签名不满足延迟映射类型) |
-   | `Record<keyof G, number>` 直传 | 值含条件类型时同样 `TS2322` |
-   | `{ ...state }` spread 后返回 | `TS2322: Type 'S' is not assignable to type 'S & UnwrapG<G>'` |
-
-   同构证据:**真 Pinia 的 defineStore 源码内部同样大量使用 `as` 收口**(搜索 pinia 仓库的 `as` 即可验证)。参考实现把 `as` 压缩到**最后一处 return**,并在注释里讲清楚为什么。
+题面与骨架已统一：actions 约束保留首参 state；最终返回处允许一次带说明的类型断言。
+参考实现通过动态循环构造泛型映射成员，编译器不能从这些赋值自动证明最终结构。
+这说明本实现需要一个明确的证明边界，不代表所有可能的实现都已被证明无法零断言。
+getter 对外是属性值，通过访问器在每次读取时重新计算，不是对外暴露的无参方法。
 
 ## 一、参考实现
 
@@ -160,9 +142,8 @@ export type BoundActions<A> = {
  * DeepReadonly —— Day 23 复刻:对象 + 数组递归 readonly。
  * 用于 $snapshot 的返回类型:类型层挡住修改,运行时再配 Object.freeze 双保险。
  *
- * 数组分支必须写在对象分支**前面**:数组也是 object,
- * 若先测 `T extends object`,数组会掉进对象映射分支,
- * keyof 数组是数字下标 + length 一堆内置成员,映射结果面目全非。
+ * 本实现显式处理数组；保留同态 readonly 映射也可以得到只读数组／元组。
+ * 不能把“对元素递归但外层数组仍可变”与“同态 readonly 映射”混为一谈。
  * (已知边界:函数类型也会命中对象分支,本场景 state 里没有函数,不处理。)
  *
  * @example
@@ -409,25 +390,18 @@ export type DropFirst<T extends readonly unknown[]> = T extends readonly [unknow
 export type DropFirst<T extends readonly unknown[]> = T extends readonly [unknown, ...infer Rest] ? Rest : []
 ```
 
-### 3. DeepReadonly 把对象分支写在数组分支前面
+### 3. DeepReadonly 的同态映射替代写法
 
 ```ts
-// ❌
+// ✅ 本题 state 不含函数；同态映射可以处理数组和元组
 export type DeepReadonly<T> = T extends object
   ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
   : T
 ```
 
-现象:**编译不报错,但求值结果面目全非** —— 数组也是 object,`Conversation[]` 会掉进对象分支,`keyof 数组` 是 `'length' | 'push' | number 索引……`,得到的根本不是 `readonly Conversation[]`。测试断言 `DeepReadonly<ConvState>['items']` 等于 `readonly { readonly id: string; ... }[]`,直接红。这是"分支顺序即语义"的典型案例:**更具体的分支(数组)必须放在更宽的分支(object)前面**,和 `never`/`any` 写在联合前面是同一个道理。
-
-```ts
-// ✅ 数组分支在前;两条分支都要递归
-export type DeepReadonly<T> = T extends readonly (infer E)[]
-  ? readonly DeepReadonly<E>[]
-  : T extends object
-    ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
-    : T
-```
+此写法会将数组变成只读数组，并保留元组结构，符合本题纯数据 state 的要求。
+参考实现的显式数组分支也是合法选择。若要保留函数调用签名，应先单独识别函数；
+这是函数处理的边界，不是数组映射失效。
 
 ### 4. ActionEvents 忘了 `K & string`,或忘了是"重映射键"不是"改名值"
 
@@ -464,16 +438,16 @@ export type BoundActions<A> = {
 
 和第 1 条同根:泛型索引不满足内置工具的函数约束。两种 ✅ 姿势:要么整套包进条件类型(README 提示的组合路线),要么用 `(state: never, ...args: infer Rest) => infer R` 一次 infer 完成(参考实现选的,少一层嵌套)。
 
-### 6. defineStore 函数体里调用 action 编译不过(骨架约束的坑)
+### 6. defineStore 函数体里调用 action 编译不过(actions 约束中需要保留 state)
 
 ```ts
-// ❌ 按骨架的 A extends Record<string, (...args: never[]) => unknown> 约束:
+// ❌ 若退回旧骨架的 A extends Record<string, (...args: never[]) => unknown> 约束:
 for (const [, action] of Object.entries(def.actions)) {
   action(state)   // error TS2345: Argument of type 'S' is not assignable to parameter of type 'never'
 }
 ```
 
-为什么错:`(...args: never[]) => unknown` 这个约束模式是为"匹配任意函数"设计的(never 在参数逆变方向上通吃),但它同时把"首参是 state"的信息抹掉了,**函数体内根本没法合法调用**。修法见文件开头的 ⚠️ 第 1 条:约束改成 `(state: S, ...args: never[]) => unknown`。
+为什么错:`(...args: never[]) => unknown` 这个约束模式是为"匹配任意函数"设计的(never 在参数逆变方向上通吃),但它同时把"首参是 state"的信息抹掉了,**函数体内根本没法合法调用**。修法与修订后骨架一致:约束改成 `(state: S, ...args: never[]) => unknown`。
 
 ### 7. 想零 as 构造 store,在 `{}` 上碰壁
 
@@ -483,7 +457,9 @@ const store: UnwrapGetters<G> = {}
 // error TS2322: Type '{}' is not assignable to type 'UnwrapGetters<G>'
 ```
 
-这不是你写错了 —— 是 TS 的硬限制:**动态键循环无法产出泛型映射类型的值**。指数签名中转、Record 直传、spread 泛型,全部被 TS2322 拒(开头表格实测)。结论:这道题的合理姿势是"类型工具层零 as,运行时收口处一次 as + 注释说明动机"。把这条想明白,比背十个工具类型更值钱 —— 你从此知道 as 的**正当使用场景**是哪里。
+当前通过动态循环逐项构造的写法，编译器不能自动证明最终对象满足泛型映射返回类型。
+本题允许在最终返回处集中使用一次断言，并说明构造过程如何保证返回契约。
+这不等于证明“所有实现都不可能零断言”；改变接口或构造方式可能改变证明条件。
 
 ### 8. 运行时不深拷贝 state,跨实例污染(参考实现亲踩)
 
@@ -535,7 +511,7 @@ for (const [key, getter] of Object.entries(def.getters)) {
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全过
+- [ ] `pnpm check:day 26` 通过（类型检查 + 运行时测试）
 - [ ] 六个类型工具(UnwrapState / UnwrapGetters / DropFirst / BoundActions / DeepReadonly / ActionEvents)全部实现,零 `any`
 - [ ] `defineStore` 运行时的 `as` 是否压缩到最后一处 return,且注释说明了为什么
 - [ ] store 顶层:`store.items` / `store.unreadCount` / `store.markAllRead()` 类型与运行时全部正确

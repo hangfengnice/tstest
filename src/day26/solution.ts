@@ -15,7 +15,7 @@
  *
  * 规则:
  *   - never 占位处写实现;throw new Error('TODO') 处填逻辑
- *   - 不允许 any、不允许 as
+ *   - 不允许 any；defineStore 最终返回处允许一次 as，必须说明依据并验证边界
  *   - 所有 export 必须有 JSDoc + @example
  */
 
@@ -139,7 +139,7 @@ export type StoreInstance<D> = never // ← 替换
 export function defineStore<
   S extends Record<string, unknown>,
   G extends Record<string, (state: S) => unknown>,
-  A extends Record<string, (...args: never[]) => unknown>,
+  A extends Record<string, (state: S, ...args: never[]) => unknown>,
 >(
   def: {
     id: string
