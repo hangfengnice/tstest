@@ -1,6 +1,6 @@
 # Day 12 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 12` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -195,15 +195,15 @@ getters: { [K in keyof G]: GetterFn<S, G[K]> }
 
 为什么有效:传入 `{ count: (s) => s.items.length }` 时,TS 拿它和镜像逐字段对齐——`count` 要满足 `(state: S) => G['count']`,函数返回 `number`,于是 `G['count'] = number`。**从值反解出类型**,这就是 reverse mapped type。
 
-### 2. 镜像"隔一层"再引用(README 预告的坑,但实测有新认知)
+### 2. 镜像可以通过别名与接口引用
 
 ```ts
-// README 说:先定义成接口/别名再引用,隔一层推导就失效
 type GetterDefs<S, G> = { [K in keyof G]: GetterFn<S, G[K]> }
-//                                    ↑ 隔了这层
 ```
 
-**实测结论(TS 5.6)**:别名引用、甚至把整个 options 包成 interface,反向推导**依然成立**——上面的 `GetterDefs<S, G>` 放在参数位一样能推出 `G = { count: number }`。"隔一层必失效"的说法来自 TS 4.x 早期的推导局限,5.6 已经不强求内联。但内联仍是推荐写法:(a) 镜像与推导意图在同一行,可读性更好;(b) 不依赖版本行为,老项目的 TS 可能真的推不动。**真正的死穴只有坑 1:根本不做镜像。**
+当前编译器中，别名化的镜像以及包含它的 options 接口仍可反向推导 G。
+内联可帮助读者直接看到对应关系，但不是推导成立的必要条件。
+旧文案关于“隔一层必失效”以及未核实的旧版本归因已移除。
 
 ### 3. actions 的镜像漏掉 `this: S`
 
@@ -326,9 +326,10 @@ for (const key of Object.keys(m) as (keyof G)[]) {        // as ×2
 
 组件里要的是 `store.getters.count` 这个值本身;调用仪式(`()`)对使用者是噪音。重算时机是响应式系统的职责(本题用 defineProperty 的 get 访问器模拟;真 Pinia 里是 computed)。类型层的分工:G 推"结果形状",StoreInstance 原样转述 —— 于是 `cart.getters.count` 直接是 `number`。
 
-**Q4(实测补充):README 说镜像必须内联、隔一层失效 —— 真的吗?**
+**Q4：镜像必须内联吗？**
 
-TS 5.6 实测:别名化的镜像(`type GetterDefs<S, G> = {...}` 放参数位)、interface 包裹的 options 都**仍能反推**。这个提示在旧版 TS(TS 4.x 早期)是真的,现在属于"过度保守"。结论:不必教条内联,但内联可读性最好、兼容性最稳。真正不可妥协的是**镜像本身必须存在**(坑 1)。
+不必。类型别名与 options 接口可以保留反向推导；新增勘误探针使用当前 TypeScript 验证。
+若具体签名推断失败，应检查映射和上下文约束，而不是仅根据“隔了几层”判断。
 
 **Q5:两个 as 分别在哪个"类型系统无能为力"的点?**
 
@@ -338,7 +339,7 @@ TS 5.6 实测:别名化的镜像(`type GetterDefs<S, G> = {...}` 放参数位)�
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错、`pnpm test` 全绿(本 day 11 个用例)
+- [ ] `pnpm check:day 12` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`;全文件 `as` 至多两次(动态键处),各带 `// TODO(reason)`
 - [ ] getters / actions 类型**全部自动推导**,测试直接 `defineStore({...})` 不带泛型参数
 - [ ] 镜像映射写在参数位:`{ [K in keyof G]: GetterFn<S, G[K]> }` + `{ [K in keyof A]: (this: S, payload: A[K]) => void }`
