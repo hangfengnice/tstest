@@ -1,5 +1,36 @@
 # Day 13 — Vue Props 类型设计(纯 TS 模拟)
 
+## 重学导读
+
+**前置知识**：Day 7 工具类型、Day 8 infer；Part 3 先读本页键重映射提示，Day 21 再深入。
+
+**今天要学会**：区分父组件允许传什么，与组件内部拿到什么。
+
+### 先理解三个概念
+
+| 概念 | 怎么理解 |
+|---|---|
+| 三个视角 | Props 描述公开输入；默认值描述缺省时补什么；解析结果描述内部可用值。三者不能共用一份不加区分的类型。 |
+| 默认值与可选性 | 有默认值的字段在解析后必有值，但值类型仍要容纳合法调用值；只排除缺失引入的 undefined，不应删除合法 null。 |
+| 键重映射 | `[K in keyof T as ...]` 在类型层改键或筛键；键变 never 时被移除。这处 as 不属于类型断言。 |
+
+### 动手顺序
+
+先完成 ButtonProps 和合法输入 → 比较默认值对象推断 → 合并默认值 → 最后分别推导内部与公开 Props。
+
+先读 [验收测试](./solution.test.ts)，再编辑 [练习实现](./solution.ts)。已有实现时先按[重学方法](../../docs/LEARNING-ORDER.md)保存历史，再独立重写；不要用旧代码的通过结果代替本轮练习。
+
+### 学完自测
+
+- **解释**：默认 size 是 md，为什么组件内部的 size 不应只允许 md？本题全必填的内部模型与真实 Vue 有哪些边界？
+- **迁移**：为一个分页组件列出必传字段、默认字段和仍可缺省的字段。
+- **验收**：在项目根目录运行 `pnpm check:day 13`，同时看类型检查与运行时测试。
+- **记录**：按[每日自评模板](../../docs/DAILY-REVIEW-TEMPLATE.md)记录本次结果；参考答案在整题通过后再看。
+
+下面保留完整题目与验收要求。一天可拆成多次学习，导读中的先后顺序不减少整题要求。
+
+---
+
 ## 业务场景
 
 你写了 6 年 Vue,`defineProps` / `withDefaults` 天天写。今天的问题是:**这两层语法糖在类型层做了什么**?不 import vue,用纯 TS 把 Props 的类型机制复刻一遍。
@@ -24,13 +55,13 @@
 
 2. `buttonDefaults = { size: 'md', disabled: false }` —— **必须 `as const`**。
    - 测试断言它满足 `Partial<ButtonProps>`;再给一个**不加 as const 的反例**(宽化成 string 后不满足)。
-   - 想清楚:`Partial<T>` 和默认值对象是什么关系?为什么默认值对象只能是"部分字段"?
+   - 想清楚:`Partial<T>` 和默认值对象是什么关系?默认值对象能否覆盖全部字段？
 3. `ResolveProps<T, D extends Partial<T>>` —— withDefaults 之后组件内部看到的类型:
    - 有默认值的字段:从"可选"变成"**必有值**",类型保持 `T[K]`(不是默认值的字面量);
    - 没默认值的字段:原样保留(该可选还是可选)。
    - **两个坑**(踩了才知道):
      a. `Omit<T, keyof D> & { [K in keyof D]: T[K] }` 里直接写 `T[K]` 会被 TS 拦 —— "K 不能索引 T"(想想条件类型守门);
-     b. 坑 a 修好后,对**可选属性**做索引访问会混进 `undefined`(表示"可能不存在")—— 但有默认值的字段必有值,想想 `NonNullable`。
+     b. 坑 a 修好后,对**可选属性**做索引访问会混进 `undefined`(表示"可能不存在")—— 但有默认值的字段必有值,只排除 `undefined`，保留合法的 `null`。
 4. `resolveButtonProps(props)` —— 签名已给,填实现:spread 合并,可选字段缺省时取默认值。
 
 ## Part 3 — 🔴 边界:手写简化版 ExtractPropTypes
@@ -48,15 +79,15 @@ const buttonPropDefs = {
 
 5. `PropDefinition<T>` 接口:`type: () => T`(类型构造器)、`required?: true`(**字面量 true**,不是 boolean —— 想想为什么,和测试里的 `true as const` 呼应)、`default?: T`。
 6. `InferPropType<D>`:`D extends PropDefinition<infer V> ? V : never` —— 用 `infer` 抓出泛型实参。
-7. `ExtractPropTypes<D>`(组件内部视角):所有 prop 都有值 —— 同构映射逐字段推断。
+7. `ExtractPropTypes<D>`：本题的简化模型将所有 prop 映射为必填，用来练习逐字段推断；真实 Vue 中并非所有未声明默认值的可选 prop 都必有值，不能直接照搬此模型。
 8. `ExtractPublicPropTypes<D>`(父组件传参视角):`required: true` 的必选,其余可选 —— **key remapping**(`[K in keyof D as 条件 ? K : never]`)把键过滤到两个分支,一个不加 `?`、一个加 `?`。
 
 ---
 
 ## 验收清单
 
-- [ ] `pnpm typecheck` 零错,`pnpm test` 全过
-- [ ] 零 `any`(本题应该零 `as`,测试里仅 `true as const` 和 `as const` 两处刻意用法)
+- [ ] `pnpm check:day 13` 通过（类型检查 + 运行时测试；未完成的占位代码报错是预期现象）
+- [ ] 零 `any`；允许 buttonDefaults 与测试样例中的 const 断言，不用普通类型断言掩盖推导问题
 - [ ] 所有 export 有 JSDoc + `@example`
 - [ ] 可选字段不收显式 `undefined`;必选缺失 / 字面量越界都编译报错
 - [ ] `buttonDefaults` 加 as const;能赋给 `Partial<ButtonProps>`;不加 as const 的对象赋不进去
@@ -69,3 +100,7 @@ const buttonPropDefs = {
 贴 `src/day13/solution.ts` 过来,说:"点评 + 解释为什么这样改"。
 
 **建议节奏**:Part 1 10 分钟 → Part 2 30 分钟(两个坑自己踩)→ Part 3 40 分钟(infer + key remapping 是本周新面孔)。
+
+---
+
+[上一题：Day 12](../day12/README.md) · [学习目录](../../docs/LEARNING-ORDER.md) · [下一题：Day 14](../day14/README.md)

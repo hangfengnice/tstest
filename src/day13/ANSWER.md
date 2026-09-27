@@ -1,6 +1,6 @@
 # Day 13 — 参考答案 + 点评要点
 
-> 使用规则:自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则:自己写完、`pnpm check:day 13` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案",是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 ## 一、参考实现
@@ -85,14 +85,14 @@ export type ButtonPropsDefaults = typeof buttonDefaults
  *      解法:条件类型守门 `K extends keyof T ? T[K] : never`。
  *   坑 b:守门之后,对**可选属性**的索引访问 T[K] 会混进 undefined
  *      (TS 用它表示"属性可能不存在")—— 但有默认值的字段必有值,
- *      undefined 是噪音,用 NonNullable 剥掉。
+ *      undefined 是噪音,用 Exclude<…, undefined> 剥掉。
  *
  * @example
  *   type R = ResolveProps<ButtonProps, ButtonPropsDefaults>
  *   // r.size 的类型是 'sm' | 'md' | 'lg'(不是 'md' 字面量,也不是 undefined)
  */
 export type ResolveProps<T, D extends Partial<T>> = Omit<T, keyof D> & {
-  [K in keyof D]: NonNullable<K extends keyof T ? T[K] : never>
+  [K in keyof D]: Exclude<K extends keyof T ? T[K] : never, undefined>
 }
 
 /**
@@ -144,7 +144,7 @@ export interface PropDefinition<T = unknown> {
  *
  * `D extends PropDefinition<infer V>`:infer 在条件类型的模式匹配里
  * "抓出"泛型实参 —— TS 拿 D 的 type: () => xxx 与 () => V 对齐,
- * V 就被解出来是 xxx。infer 是"从类型里反解类型"的唯一通道。
+ * V 就被解出来是 xxx。infer 在条件类型模式中提取类型变量；已知属性也可直接通过索引访问读取类型。
  *
  * @example
  *   type S = InferPropType<{ type: () => string; required: true }>  // => string
@@ -202,7 +202,7 @@ export type ResolveProps<T, D extends Partial<T>> = Omit<T, keyof D> & {
 
 ```ts
 // ✅ 正确姿势:条件类型当场守门
-{ [K in keyof D]: NonNullable<K extends keyof T ? T[K] : never> }
+{ [K in keyof D]: Exclude<K extends keyof T ? T[K] : never, undefined> }
 ```
 
 `K extends keyof T ? ... : never` 在映射体内**重新做一次**类型收窄,false 分支给 never(永不出现的占位)。这个模式在泛型工具类型里随处可见,值得形成肌肉记忆。
@@ -220,11 +220,11 @@ export type ResolveProps<T, D extends Partial<T>> = Omit<T, keyof D> & {
 为什么:TS 对**可选属性**做索引访问 `T[K]` 时,结果自动 `| undefined` —— 这是"属性可能不存在"的编码。但 ResolveProps 的语义恰恰是"这些字段有默认值、必有值",undefined 是必须剥掉的噪音。
 
 ```ts
-// ✅ 正确姿势:NonNullable
-{ [K in keyof D]: NonNullable<K extends keyof T ? T[K] : never> }
+// ✅ 正确姿势:只排除 undefined
+{ [K in keyof D]: Exclude<K extends keyof T ? T[K] : never, undefined> }
 ```
 
-注意测试断言的微妙之处:`Resolved['size']` 期望 `'sm' | 'md' | 'lg'`(干净),而 `Resolved['loading']`(没默认值的)期望 `boolean | undefined`—— Omit 保留的那一半**不做** NonNullable,各得其所。
+注意测试断言的微妙之处:`Resolved['size']` 期望 `'sm' | 'md' | 'lg'`(干净),而 `Resolved['loading']`(没默认值的)期望 `boolean | undefined`—— Omit 保留的那一半**不做** undefined 排除,各得其所。
 
 ### 3. buttonDefaults 忘了 as const(测试 67-72 行的反例)
 
@@ -319,7 +319,7 @@ export type InferPropType<D extends PropDefinition> =
   D extends PropDefinition<infer V> ? V : never
 ```
 
-`infer` 是 TS 唯一的"从既有类型里反解变量"的通道,和正则的捕获组一个地位:`PropDefinition<infer V>` 是模式,`V` 是捕获组。
+`infer` 在条件类型模式中声明待推导变量，类似正则捕获组；它不是所有类型提取操作的唯一写法：`PropDefinition<infer V>` 是模式,`V` 是捕获组。
 
 ### 8. ExtractPropTypes 映射时丢了"逐字段"而写成整体
 
@@ -340,9 +340,14 @@ export type ExtractPropTypes<D extends Record<string, PropDefinition>> =
 
 ## 三、思考题参考答案
 
-**Q1:`Partial<T>` 和默认值对象是什么关系?为什么默认值对象只能是"部分字段"?**
+**Q1:`Partial<T>` 和默认值对象是什么关系?默认值对象能否覆盖全部字段？**
 
-`Partial<ButtonProps>` 是"父组件传参的合法形状"(每个字段都可省);默认值对象是它的一个**实例**,额外性质是"值永远是字面量(as const)"。只能部分:全字段都有默认值意味着父组件可以 `{}` 空传,Props 就失去约束意义了;更重要的是 Partial **不记录**"哪些字段有默认值"这个信息 —— 所以 ResolveProps 的 D 参数必须用精确形状(ButtonPropsDefaults),`ResolveProps<T, Partial<T>>` 什么都推不出来(所有字段都可能"有默认值"也都可能没有)。**类型不只是"合法值集",还是"携带信息的精确描述"** —— 这就是为什么 as const 后的 typeof 比 Partial 有用得多。
+`Partial<ButtonProps>` 允许从 ButtonProps 中选择零个、部分或全部字段，并保留对应值类型；
+它不是父组件完整的入参契约，也不要求默认值只能覆盖部分字段。哪些字段必须由调用方提供，
+取决于组件的公开 Props 设计。D 需要记录实际提供了哪些默认值，因此应保留默认值对象的精确键，
+而不是把它直接注解成宽泛的 Partial<T>。as const 可帮助保留字面量，但默认值不必都是字面量。
+
+默认值处理只消除缺失带来的 undefined，不能误删业务允许的 null；本题使用 Exclude<…, undefined>。
 
 **Q2(README Part 2 埋的问题):`ResolveProps` 里"必有值"的类型为什么是 `T[K]` 而不是默认值的字面量?**
 
@@ -361,12 +366,12 @@ export type ExtractPropTypes<D extends Record<string, PropDefinition>> =
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错、`pnpm test` 全绿(本 day 18 个用例)
+- [ ] `pnpm check:day 13` 通过（类型检查 + 运行时测试）
 - [ ] 零 `any`、零 `as`(本 day 类型层完全可推,这是与 Day 11/12 的本质区别)
 - [ ] `ButtonProps`:必选 type/label;可选 size/disabled/loading;显式 undefined 报错(eOPT)
 - [ ] `buttonDefaults` 加了 as const;赋 `Partial<ButtonProps>` 通过;不加 as const 的赋不进去
-- [ ] `ResolveProps`:有默认值字段变必选、类型 `NonNullable<T[K]>`;无默认字段照旧(含 `| undefined`)
-- [ ] 坑 a 用 `K extends keyof T ? T[K] : never` 守门;坑 b 用 NonNullable 剥 undefined
+- [ ] `ResolveProps`:有默认值字段变必选、类型 `Exclude<T[K], undefined>`;无默认字段照旧(含 `| undefined`)
+- [ ] 坑 a 用 `K extends keyof T ? T[K] : never` 守门;坑 b 用 Exclude<…, undefined> 剥 undefined
 - [ ] `resolveButtonProps` 的 spread 顺序是 `{ ...defaults, ...props }`(用户值覆盖默认值)
 - [ ] `PropDefinition.required` 是字面量 `true`;`default` 类型与 `type` 联动
 - [ ] `InferPropType` 用 `PropDefinition<infer V>` 反解

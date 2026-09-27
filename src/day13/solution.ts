@@ -66,7 +66,7 @@ export type ButtonPropsDefaults = typeof buttonDefaults
  * 提示:
  *   - Omit<T, keyof D>:去掉有默认值的字段
  *   - 映射 { [K in keyof D]: ... }:让它们重新出现、变为必选
- *   - 两个坑:直接写 T[K] 会因为"索引访问可选属性"混进 undefined(想想 NonNullable);
+ *   - 两个坑:直接写 T[K] 会因为"索引访问可选属性"混进 undefined(只排除 undefined，保留合法的 null);
  *     直接写 T[K] 还会被 TS 拦"K 不能索引 T"(想想条件类型守门)
  *
  * @example

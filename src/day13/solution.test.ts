@@ -73,6 +73,10 @@ describe('Day 13 — Part 2 默认值对象', () => {
 })
 
 describe('Day 13 — Part 2 ResolveProps(可选传入 → 必有值)', () => {
+  it('默认值只消除 undefined，不删除合法的 null', () => {
+    type Resolved = ResolveProps<{ value?: string | null }, { value: string }>
+    expectTypeOf<Resolved['value']>().toEqualTypeOf<string | null>()
+  })
   it('有默认值的字段变必选、类型保持 T[K];无默认的照旧', () => {
     type Resolved = ResolveProps<ButtonProps, ButtonPropsDefaults>
     expectTypeOf<Resolved['type']>().toEqualTypeOf<'primary' | 'ghost'>()
