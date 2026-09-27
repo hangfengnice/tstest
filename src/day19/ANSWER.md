@@ -1,6 +1,6 @@
 # Day 19 — 参考答案 + 点评要点
 
-> 使用规则：自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则：自己写完、`pnpm check:day 19` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案"，是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 以下实现**已通过本 day 全部验收测试**（vitest 19/19 双通道全绿，运行时 + 类型检查）+
@@ -66,7 +66,7 @@ export type ReturnOf<T extends (...args: never[]) => unknown> =
  * 联想运行时:`new Promise(r => r(promiseA))` 的 `.then` 回调拿到的是 promiseA
  * **解析后的值** —— 运行时的 resolve 会自动展平 thenable(递归地)。
  * 要在类型层贴合这个运行时语义,条件类型就得递归(每剥一层再问一次"还是 Promise 吗"),
- * 那正是内置 `Awaited<T>` 的做法 —— Day 23 的主题。今天的非递归版是它的地基:
+ * 那正是内置 `Awaited<T>` 的做法 —— Day 24 的主题。今天的非递归版是它的地基:
  * 先能剥一层,递归只是"一层"的重复。
  *
  * @example
@@ -93,7 +93,7 @@ export type ParamsOf<T extends (...args: never[]) => unknown> =
  *
  * **边界观察:无参函数为什么提出 unknown?**(思考题)
  * `() => void` 去匹配 `(first: infer F, ...rest: never[]) => unknown`:
- * 参数少的函数可以赋给参数多的签名(多出来的位置永远没人传),所以模式**匹配成功**;
+ * 参数少的函数可以赋给参数多的签名(调用方可传更多参数，函数可忽略多余实参),所以模式**匹配成功**;
  * 但没有实参对应 first 这个洞,TS 只能把洞填成 unknown(顶类型,"这里可能有任何东西")。
  * 也就是说:匹配成功 ≠ 洞有内容。想要"无参就不该通过"的语义,得自己再加一层判断
  * (比如用 ParamsOf 的元组长度做条件)—— 这也是"模式匹配"和"索引访问"的语义差异之一。
@@ -218,14 +218,10 @@ false 分支理论不可达）—— **false 分支给什么，取决于"对不�
 
 ❌ `export type FirstParamOf<...> = ParamsOf<T>[0]`
 
-现象：tsconfig 开了 noUncheckedIndexedAccess，
-`FirstParamOf<(q: string, page: number) => void>` 是 `string | undefined`，
-断言 `toEqualTypeOf<string>()` 红；
-而且无参函数提出的是 `undefined` 而不是观察点要求的 `unknown`。
-为什么错（两层）：
-1. 索引访问在 noUncheckedIndexedAccess 下对"可能越界"的位置补 undefined；
-2. README 明说这是"索引访问"不是"模式匹配" —— 洞挖在首参位
-   `(first: infer F, ...rest)` 才是今天的姿势。
+对 `(q: string, page: number) => void`，参数元组的 0 号位置已知存在，结果是 `string`。
+`noUncheckedIndexedAccess` 不会改变这个类型级结果。差异出现在无参函数：
+通过泛型封装的元组索引得到 `undefined`，本题的匹配模式则观察到 `unknown`。
+因此该写法不满足无参边界和“使用模式匹配”的练习要求，而不是必填首参多了 undefined。
 
 ✅ `T extends (first: infer F, ...rest: never[]) => unknown ? F : never`
 
@@ -307,7 +303,7 @@ parameter of type 'Promise<UnwrapPromise<ReturnOf<Fn>>>'.
 
 现象："不同参数不共享缓存"的用例红 —— `(q: 'chip')` 和 `(q: 'runner')` 如果只看
 首参会区分，但参数是 `(q, page)` 时 `(chip, 1)` 和 `(chip, 2)` 撞 key。
-为什么错：缓存的 key 必须覆盖**全部**输入维度。JSON.stringify(整个 args) 把
+为什么错：本题缓存键需要覆盖测试场景的输入维度。JSON.stringify 并非任意 JS 值的无碰撞编码；本题对简单可序列化参数使用整个 args，把
 参数列表序列化成稳定的 key。
 
 ✅ `const key = JSON.stringify(args)`。
@@ -355,7 +351,7 @@ never[] 靠"逆变规则恰好全过"—— **能力相同，纪律不同**。
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错，`npx vitest run src/day19` 全绿（19/19 双通道）
+- [ ] `pnpm check:day 19` 通过（类型检查 + 运行时测试）
 - [ ] 零 any；唯一的一处 as 在 withCache 里，带"实测卡在哪"的注释
 - [ ] 所有 export 有 JSDoc + @example
 - [ ] 三道思考题的回答分别写在 ElementOf / ReturnOf / UnwrapPromise 的 JSDoc 里
