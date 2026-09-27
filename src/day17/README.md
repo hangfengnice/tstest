@@ -1,5 +1,36 @@
 # Day 17 — API client 类型设计(泛型请求 / 路径参数模板 / Result 包装)
 
+## 重学导读
+
+**前置知识**：Day 2 Result、Day 3 in 收窄、Day 6 satisfies；路径提取先读 Day 22 模式匹配。
+
+**今天要学会**：把端点描述、响应类型与参数要求关联起来，并保留运行时错误处理。
+
+### 先理解三个概念
+
+| 概念 | 怎么理解 |
+|---|---|
+| 端点描述 | 路径和方法是运行时值，响应类型由泛型携带；携带类型不等于已验证网络响应。 |
+| 重叠分支 | number 包含 0，所以 code: 0 与 code: number 不是互斥判别符；本题用 data 字段存在性区分信封。 |
+| 路径提取 | 模板匹配识别冒号后的片段，递归处理剩余路径；先手推单参数再做多个参数，复杂时回看 Day 22–23。 |
+
+### 动手顺序
+
+先定义 Result 和信封 → 注册端点并观察推断 → 实现 URL 与错误处理 → 最后做 PathParams。每步用注入 transport 验证，不必请求真实服务。
+
+先读 [验收测试](./solution.test.ts)，再编辑 [练习实现](./solution.ts)。已有实现时先按[重学方法](../../docs/LEARNING-ORDER.md)保存历史，再独立重写；不要用旧代码的通过结果代替本轮练习。
+
+### 学完自测
+
+- **解释**：为什么检查 code 等于 0 还不足以取 data？端点的 Resp 类型能替代响应校验吗？
+- **迁移**：为“订单详情 / 订单列表”设计端点，分别列出路径参数与查询参数。
+- **验收**：在项目根目录运行 `pnpm check:day 17`，同时看类型检查与运行时测试。
+- **记录**：按[每日自评模板](../../docs/DAILY-REVIEW-TEMPLATE.md)记录本次结果；参考答案在整题通过后再看。
+
+下面保留完整题目与验收要求。一天可拆成多次学习，导读中的先后顺序不减少整题要求。
+
+---
+
 ## 业务场景
 
 chipRunner 的后端约定:
@@ -40,7 +71,7 @@ if (user.ok) user.data // 已经是 User
    注意 exactOptionalPropertyTypes:可选属性不接受显式 undefined。
 5. `EndpointDef<P extends string, Resp>` —— 端点描述:
    - `{ path: P; method: Method }` + **幽灵属性** `_response?: Resp`
-     (和 Day 14 的 InjectionKey 同一个思想:类型只存在于标注里,运行时永远是 undefined)
+     (和 Day 14 的 InjectionKey 同一个思想：本题不创建该可选字段，只用它携带类型信息；它不提供运行时响应校验)
    - 用法:`const getUser: EndpointDef<'/users/:id', User> = { path: '/users/:id', method: 'GET' }` —— 不需要 as
 6. `endpoints` 注册表 + **satisfies**(Day 6 技能):
    - `ApiRegistry = Record<string, EndpointDef<string, unknown>>`
@@ -68,7 +99,7 @@ if (user.ok) user.data // 已经是 User
 
 ## 验收点
 
-- [ ] `pnpm typecheck` 零错,`pnpm vitest run src/day17` 全过
+- [ ] `pnpm check:day 17` 通过（类型检查 + 运行时测试；未完成的占位代码报错是预期现象）
 - [ ] `Result` 的 JSDoc 回答了"为什么 E 默认 ApiError"
 - [ ] `endpoints` 用了 satisfies,且各项类型**没有**被拓宽
 - [ ] `PathParams` 无参路径是 `Record<string, never>`(反例:多传键必须编译报错)
@@ -81,3 +112,7 @@ if (user.ok) user.data // 已经是 User
 贴 `solution.ts`,说:"点评 + 解释为什么"。
 建议节奏:Part 1 15 分钟 → Part 2 35 分钟 → Part 3 50 分钟(PathParams 值得花时间)。
 卡超过 15 分钟来要提示 —— 这题的提示是分阶梯的,不会直接给答案。
+
+---
+
+[上一题：Day 16](../day16/README.md) · [学习目录](../../docs/LEARNING-ORDER.md) · [下一题：Day 18](../day18/README.md)

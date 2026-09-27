@@ -33,7 +33,7 @@ export type Result<T, E = ApiError> = never // ← 替换
 export type ApiEnvelope<T> = never // ← 替换
 
 // TODO: EndpointDef<P, Resp> —— { path: P; method: Method; _response?: Resp }
-// _response 是幽灵属性:只在类型标注里出现,运行时永远是 undefined
+// _response 是携带响应类型的可选字段，本题创建端点时不提供它；类型声明不生成运行时字段
 export type EndpointDef<P extends string, Resp> = never // ← 替换
 
 // TODO: ApiRegistry —— Record<string, EndpointDef<string, unknown>>

@@ -1,6 +1,6 @@
 # Day 17 — 参考答案 + 点评要点
 
-> 使用规则：自己写完、`pnpm test` 全绿之后再打开这份文件。
+> 使用规则：自己写完、`pnpm check:day 17` 全绿之后再打开这份文件。
 > 对照的目的不是"对答案"，是找"你没想到的第二种写法"和"你侥幸没踩的坑"。
 
 以下实现**已通过本 day 全部验收测试**（vitest 17/17 双通道全绿，运行时 + 类型检查）+
@@ -75,7 +75,7 @@ export type ApiEnvelope<T> =
 
 /**
  * 端点描述:路径模板 + 方法 + 幽灵属性 _response。
- * _response 只活在类型标注里,运行时永远是 undefined ——
+ * 本题不创建 _response 字段；该可选字段用于携带类型，不做运行时响应校验。
  * 它是"响应类型"的运输工具:request 从 endpoint 的类型参数里拿到 Resp,
  * 调用处零重复、零 as(和 Day 14 的 InjectionKey 同一个思想:用类型位置当口袋装类型)。
  *
@@ -484,7 +484,7 @@ catch (e) {
 
 ### 幽灵属性 `_response` 和 Day 14 InjectionKey 的共同思想
 
-**用"只存在于类型系统的属性"当类型的运输工具**。运行时它永远是 undefined（不占内存、
+**用"只存在于类型系统的属性"当类型的运输工具**。本题不创建该可选字段，接口声明不生成运行时属性（
 不影响序列化），但类型上它把 Resp "焊"在对象上 —— `request` 的签名
 `endpoint: EndpointDef<P, Resp>` 一看到 endpoints.getUser 就同时拿到 P 和 Resp。
 与 InjectionKey<T>（symbol 上的幽灵类型）互为镜像：一个是属性位置，一个是 key 位置。
@@ -493,7 +493,7 @@ catch (e) {
 
 ## 四、验收自查清单
 
-- [ ] `pnpm typecheck` 零错，`npx vitest run src/day17` 全过（17/17 双通道）
+- [ ] `pnpm check:day 17` 通过（类型检查 + 运行时测试）
 - [ ] Result 的 JSDoc 回答了"为什么 E 默认 ApiError"（对照：默认 = 使用频率投票）
 - [ ] endpoints 用了 satisfies，且各项类型**没有**被拓宽
   （`endpoints.getUser` 还是 `EndpointDef<'/users/:id', User>`）
